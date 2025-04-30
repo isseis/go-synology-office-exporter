@@ -118,14 +118,19 @@ func (s *SynologySession) Login(application string) error {
 	if err := json.Unmarshal([]byte(body), &parsedBody); err != nil {
 		return SynologyError(err.Error())
 	}
-	if !parsedBody["success"].(bool) {
+	success, ok := parsedBody["success"].(bool)
+	if !ok || !success {
 		return SynologyError("Login failed")
 	}
 
-	resData := parsedBody["data"].(map[string]interface{})
-	sid := resData["sid"].(string)
-	if sid == "" {
-		return SynologyError("SID is empty")
+	data, ok := parsedBody["data"].(map[string]interface{})
+	if !ok {
+		return SynologyError("Invalid or missing 'data' field in response")
+	}
+
+	sid, ok := data["sid"].(string)
+	if !ok || sid == "" {
+		return SynologyError("Invalid or missing 'sid' field in response")
 	}
 	s.sid = sid
 	s.sessionExpire = false
