@@ -2,6 +2,7 @@ package synology_drive_api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -19,13 +20,24 @@ type SynologySession struct {
 	http_client   http.Client
 }
 
+// SynologyAuthResponse represents the response from the Synology API after authentication.
+type synologyAuthResponseV3 struct {
+	Success bool `json:"success"`
+	Data    struct {
+		DID string `json:"did"`
+		SID string `json:"sid"`
+	} `json:"data"`
+	Err struct {
+		Code int `json:"code"`
+	} `json:"error"`
+}
+
 type InvalidUrlError string
 
 func (e InvalidUrlError) Error() string {
 	return "invalid URL " + strconv.Quote(string(e)) + " in base_url"
 }
 
-// TODO: Add detailed information about the error
 type HttpError string
 
 func (e HttpError) Error() string {
@@ -39,7 +51,6 @@ func (e SynologyError) Error() string {
 }
 
 func NewSynologySession(username string, password string, base_url string) (*SynologySession, error) {
-
 	parsed, err := url.Parse(base_url)
 	if err != nil {
 		return nil, InvalidUrlError(err.Error())
@@ -62,8 +73,6 @@ func (s *SynologySession) buildUrl(endpoint string, params map[string]string) *u
 		Path:   "webapi/" + endpoint,
 	}
 	query := url.Query()
-	query.Set("account", s.username)
-	query.Set("passwd", s.password)
 	for param, value := range params {
 		query.Set(param, value)
 	}
@@ -87,11 +96,10 @@ func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*h
 
 func (s *SynologySession) Login(application string) error {
 	endpoint := "auth.cgi"
-	loginAPIVersion := "3" // Assuming DSM version 7
 	params := map[string]string{
 		"api":     "SYNO.API.Auth",
-		"version": loginAPIVersion,
 		"method":  "login",
+		"version": "3",
 		"account": s.username,
 		"passwd":  s.password,
 		"session": application,
@@ -100,40 +108,28 @@ func (s *SynologySession) Login(application string) error {
 
 	resp, err := s.httpGet(endpoint, params)
 	if err != nil {
-		return err
+		return HttpError(err.Error())
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		panic("Could not read response body")
+		return HttpError(err.Error())
 	}
 	defer resp.Body.Close()
 
-	/*
-		The body is expected to be in JSON format like:
-		{"data":{"did":"YYYYYYYYYYYYYYYYYYYYYYYYY","sid":"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"},"success":true}
-	*/
-
-	var parsedBody map[string]interface{}
-	if err := json.Unmarshal([]byte(body), &parsedBody); err != nil {
+	var authResponse synologyAuthResponseV3
+	if err := json.Unmarshal(body, &authResponse); err != nil {
 		return SynologyError(err.Error())
 	}
-	success, ok := parsedBody["success"].(bool)
-	if !ok || !success {
-		return SynologyError("Login failed")
+	if !authResponse.Success {
+		return SynologyError(fmt.Sprintf("Login failed: [code=%d]", authResponse.Err.Code))
 	}
-
-	data, ok := parsedBody["data"].(map[string]interface{})
-	if !ok {
-		return SynologyError("Invalid or missing 'data' field in response")
-	}
-
-	sid, ok := data["sid"].(string)
-	if !ok || sid == "" {
+	sid := authResponse.Data.SID
+	if sid == "" {
 		return SynologyError("Invalid or missing 'sid' field in response")
 	}
+
 	s.sid = sid
 	s.sessionExpire = false
-
 	return nil
 }

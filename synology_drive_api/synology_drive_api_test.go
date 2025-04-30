@@ -40,8 +40,10 @@ func Test1(t *testing.T) {
 		s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
 		url := s.buildUrl("auth.cgi", map[string]string{
 			"api":     "SYNO.API.Auth",
-			"version": "3",
 			"method":  "login",
+			"version": "3",
+			"account": getNasUser(),
+			"passwd":  getNasPass(),
 			"session": "SynologyDrive",
 			"format":  "cookie",
 		})
