@@ -66,5 +66,18 @@ func Test1(t *testing.T) {
 		require.Nil(t, err)
 		err = s.Login("SynologyDrive")
 		require.Nil(t, err)
+		assert.False(t, s.sessionExpire)
+		assert.NotEmpty(t, s.sid)
+	})
+
+	t.Run("Logout", func(t *testing.T) {
+		s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
+		require.Nil(t, err)
+		err = s.Login("SynologyDrive")
+		require.Nil(t, err)
+		err = s.Logout("SynologyDrive")
+		require.Nil(t, err)
+		assert.True(t, s.sessionExpire)
+		assert.Empty(t, s.sid)
 	})
 }
