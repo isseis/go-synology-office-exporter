@@ -1,0 +1,16 @@
+version = '2'
+
+[linters]
+[linters.exclusions]
+generated = 'lax'
+presets = ['common-false-positives', 'legacy', 'std-error-handling']
+paths = ['third_party$', 'builtin$', 'examples$']
+
+[[linters.exclusions.rules]]
+path = '_test\.go'
+linters = ['errcheck', 'gocyclo', 'dupl', 'gosec']
+
+[formatters]
+[formatters.exclusions]
+generated = 'lax'
+paths = ['third_party$', 'builtin$', 'examples$']
