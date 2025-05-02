@@ -11,13 +11,17 @@ import (
 )
 
 type SynologySession struct {
-	username      string // Username for login on Synology NAS
-	password      string // Password for login on Synology NAS
-	hostname      string // Hostname of Synology NAS
-	scheme        string // URL scheme (http or https)
-	sid           string // session id (set after login)
-	sessionExpire bool
-	http_client   http.Client
+	username    string // Username for login on Synology NAS
+	password    string // Password for login on Synology NAS
+	hostname    string // Hostname of Synology NAS
+	scheme      string // URL scheme (http or https)
+	sid         string // session id (set after login)
+	http_client http.Client
+}
+
+// sessionExpired checks if the current session is expired by checking if the sid is empty
+func (s *SynologySession) sessionExpired() bool {
+	return s.sid == ""
 }
 
 // Common Synology API error codes (not exhaustive)
@@ -139,12 +143,11 @@ func NewSynologySession(username string, password string, base_url string) (*Syn
 	}
 	jar, _ := cookiejar.New(nil)
 	return &SynologySession{
-		username:      username,
-		password:      password,
-		hostname:      parsed.Host,
-		scheme:        parsed.Scheme,
-		sessionExpire: true,
-		http_client:   http.Client{Jar: jar},
+		username:    username,
+		password:    password,
+		hostname:    parsed.Host,
+		scheme:      parsed.Scheme,
+		http_client: http.Client{Jar: jar},
 	}, nil
 }
 
@@ -158,7 +161,7 @@ func (s *SynologySession) buildUrl(endpoint string, params map[string]string) *u
 	for param, value := range params {
 		query.Set(param, value)
 	}
-	if !s.sessionExpire {
+	if !s.sessionExpired() {
 		query.Set("_sid", s.sid)
 	}
 	url.RawQuery = query.Encode()
@@ -220,7 +223,6 @@ func (s *SynologySession) Login() error {
 	}
 
 	s.sid = sid
-	s.sessionExpire = false
 	return nil
 }
 
@@ -257,6 +259,5 @@ func (s *SynologySession) Logout() error {
 		return SynologyError(fmt.Sprintf("Logout failed: [code=%d]", authResponse.Err.Code))
 	}
 	s.sid = ""
-	s.sessionExpire = true
 	return nil
 }

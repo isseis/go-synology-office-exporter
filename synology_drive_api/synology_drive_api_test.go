@@ -66,7 +66,7 @@ func Test1(t *testing.T) {
 		require.Nil(t, err)
 		err = s.Login()
 		require.Nil(t, err)
-		assert.False(t, s.sessionExpire)
+		assert.False(t, s.sessionExpired())
 		assert.NotEmpty(t, s.sid)
 	})
 
@@ -77,7 +77,7 @@ func Test1(t *testing.T) {
 		require.Nil(t, err)
 		err = s.Logout()
 		require.Nil(t, err)
-		assert.True(t, s.sessionExpire)
+		assert.True(t, s.sessionExpired())
 		assert.Empty(t, s.sid)
 	})
 }
