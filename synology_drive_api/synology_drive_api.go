@@ -308,12 +308,12 @@ func (s *SynologySession) List(fileID SynologyDriveFileID) (*ListResponseDataV2,
 	if err != nil {
 		return nil, err
 	}
+	defer rawResp.Body.Close()
 
 	body, err := io.ReadAll(rawResp.Body)
 	if err != nil {
 		return nil, HttpError(err.Error())
 	}
-	defer rawResp.Body.Close()
 
 	var resp ListResponseV2
 	if err := json.Unmarshal(body, &resp); err != nil {
