@@ -122,6 +122,16 @@ func (e SynologyError) Error() string {
 	return "synology error " + strconv.Quote(string(e))
 }
 
+// NewSynologySession creates a new Synology API session with the provided credentials and base URL.
+// It returns a pointer to the session and an error if the base URL is invalid.
+// Parameters:
+//   - username: Username for login on Synology NAS
+//   - password: Password for login on Synology NAS
+//   - base_url: Base URL for the Synology NAS (e.g., "https://nas.example.com:5001")
+//
+// Returns:
+//   - *SynologySession: A new session object
+//   - error: An error of type InvalidUrlError if the URL is invalid
 func NewSynologySession(username string, password string, base_url string) (*SynologySession, error) {
 	parsed, err := url.Parse(base_url)
 	if err != nil {
@@ -169,6 +179,11 @@ func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*h
 	return res, nil
 }
 
+// Login authenticates with the Synology NAS using the session credentials.
+// It performs an API call to auth.cgi endpoint and stores the session ID for subsequent requests.
+// Returns:
+//   - error: HttpError if there was a network or request error
+//   - error: SynologyError if authentication failed or the response was invalid
 func (s *SynologySession) Login() error {
 	endpoint := "auth.cgi"
 	params := map[string]string{
@@ -209,6 +224,11 @@ func (s *SynologySession) Login() error {
 	return nil
 }
 
+// Logout terminates the current session on the Synology NAS.
+// It performs an API call to auth.cgi endpoint to invalidate the current session ID.
+// Returns:
+//   - error: HttpError if there was a network or request error
+//   - error: SynologyError if the logout failed or the response was invalid
 func (s *SynologySession) Logout() error {
 	endpoint := "auth.cgi"
 	params := map[string]string{
