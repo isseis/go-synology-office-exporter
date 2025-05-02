@@ -18,32 +18,32 @@ type SynologySession struct {
 	http_client http.Client
 }
 
-// sessionExpired checks if the current session is expired by checking if the sid is empty
-func (s *SynologySession) sessionExpired() bool {
-	return s.sid == ""
-}
-
 // Synology Session name constant for API calls (private to this package)
 const synologySessionName = "SynologyDrive"
 
-// loginResponseV3 represents the response from the Synology API after login.
-type loginResponseV3 struct {
-	Success bool `json:"success"`
-	Data    struct {
-		DID string `json:"did"`
-		SID string `json:"sid"`
-	} `json:"data"`
-	Err struct {
-		Code int `json:"code"`
-	} `json:"error"`
-}
-
-// loginResponseV3 represents the response from the Synology API after logout.
-type logoutResponseV3 struct {
+// synologyAPIResponse represents the common structure of all Synology API responses
+type synologyAPIResponse struct {
 	Success bool `json:"success"`
 	Err     struct {
 		Code int `json:"code"`
 	} `json:"error"`
+}
+
+// loginResponseData represents the data specific to a login response
+type loginResponseData struct {
+	DID string `json:"did"`
+	SID string `json:"sid"`
+}
+
+// loginResponseV3 represents the response from the Synology API after login.
+type loginResponseV3 struct {
+	synologyAPIResponse
+	Data loginResponseData `json:"data"`
+}
+
+// logoutResponseV3 represents the response from the Synology API after logout.
+type logoutResponseV3 struct {
+	synologyAPIResponse
 }
 
 // NewSynologySession creates a new Synology API session with the provided credentials and base URL.
@@ -69,6 +69,10 @@ func NewSynologySession(username string, password string, base_url string) (*Syn
 		scheme:      parsed.Scheme,
 		http_client: http.Client{Jar: jar},
 	}, nil
+}
+
+func (s *SynologySession) sessionExpired() bool {
+	return s.sid == ""
 }
 
 func (s *SynologySession) buildUrl(endpoint string, params map[string]string) *url.URL {
