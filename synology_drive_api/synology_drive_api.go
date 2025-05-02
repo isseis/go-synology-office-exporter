@@ -325,7 +325,7 @@ func (s *SynologySession) List(fileID SynologyDriveFileID) (*ListResponseDataV2,
 	for i := range resp.Data.Items {
 		item := resp.Data.Items[i]
 		if !item.ContentType.isValid() {
-			return nil, SynologyError(fmt.Sprintf("Invalid content type: %s", item.Type))
+			return nil, SynologyError(fmt.Sprintf("Invalid content type: %s", item.ContentType))
 		}
 	}
 	return &resp.Data, nil
