@@ -26,14 +26,22 @@ func (s *SynologySession) sessionExpired() bool {
 // Synology Session name constant for API calls (private to this package)
 const synologySessionName = "SynologyDrive"
 
-// SynologyAuthResponse represents the response from the Synology API after authentication.
-type synologyAuthResponseV3 struct {
+// loginResponseV3 represents the response from the Synology API after login.
+type loginResponseV3 struct {
 	Success bool `json:"success"`
 	Data    struct {
 		DID string `json:"did"`
 		SID string `json:"sid"`
 	} `json:"data"`
 	Err struct {
+		Code int `json:"code"`
+	} `json:"error"`
+}
+
+// loginResponseV3 represents the response from the Synology API after logout.
+type logoutResponseV3 struct {
+	Success bool `json:"success"`
+	Err     struct {
 		Code int `json:"code"`
 	} `json:"error"`
 }
@@ -111,25 +119,25 @@ func (s *SynologySession) Login() error {
 		"format":  "cookie",
 	}
 
-	resp, err := s.httpGet(endpoint, params)
+	rawResp, err := s.httpGet(endpoint, params)
 	if err != nil {
 		return err
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(rawResp.Body)
 	if err != nil {
 		return HttpError(err.Error())
 	}
-	defer resp.Body.Close()
+	defer rawResp.Body.Close()
 
-	var authResponse synologyAuthResponseV3
-	if err := json.Unmarshal(body, &authResponse); err != nil {
+	var resp loginResponseV3
+	if err := json.Unmarshal(body, &resp); err != nil {
 		return SynologyError(err.Error())
 	}
-	if !authResponse.Success {
-		return SynologyError(fmt.Sprintf("Login failed: [code=%d]", authResponse.Err.Code))
+	if !resp.Success {
+		return SynologyError(fmt.Sprintf("Login failed: [code=%d]", resp.Err.Code))
 	}
-	sid := authResponse.Data.SID
+	sid := resp.Data.SID
 	if sid == "" {
 		return SynologyError("Invalid or missing 'sid' field in response")
 	}
@@ -152,23 +160,23 @@ func (s *SynologySession) Logout() error {
 		"session": synologySessionName,
 	}
 
-	resp, err := s.httpGet(endpoint, params)
+	rawResp, err := s.httpGet(endpoint, params)
 	if err != nil {
 		return err
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(rawResp.Body)
 	if err != nil {
 		return HttpError(err.Error())
 	}
-	defer resp.Body.Close()
+	defer rawResp.Body.Close()
 
-	var authResponse synologyAuthResponseV3
-	if err := json.Unmarshal(body, &authResponse); err != nil {
+	var resp logoutResponseV3
+	if err := json.Unmarshal(body, &resp); err != nil {
 		return SynologyError(err.Error())
 	}
-	if !authResponse.Success {
-		return SynologyError(fmt.Sprintf("Logout failed: [code=%d]", authResponse.Err.Code))
+	if !resp.Success {
+		return SynologyError(fmt.Sprintf("Logout failed: [code=%d]", resp.Err.Code))
 	}
 	s.sid = ""
 	return nil
