@@ -89,6 +89,9 @@ const SYNOLOGY_LOGIN_ERROR_CANNOT_CHANGE_EXPIRED_PASSWORD = 408
 const SYNOLOGY_LOGIN_ERROR_PASSWORD_EXPIRED = 409
 const SYNOLOGY_LOGIN_ERROR_PASSWORD_MUST_BE_CHANGED = 410
 
+// Synology Session name constant for API calls (private to this package)
+const synologySessionName = "SynologyDrive"
+
 // SynologyAuthResponse represents the response from the Synology API after authentication.
 type synologyAuthResponseV3 struct {
 	Success bool `json:"success"`
@@ -166,7 +169,7 @@ func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*h
 	return res, nil
 }
 
-func (s *SynologySession) Login(application string) error {
+func (s *SynologySession) Login() error {
 	endpoint := "auth.cgi"
 	params := map[string]string{
 		"api":     "SYNO.API.Auth",
@@ -174,7 +177,7 @@ func (s *SynologySession) Login(application string) error {
 		"version": "3",
 		"account": s.username,
 		"passwd":  s.password,
-		"session": application,
+		"session": synologySessionName,
 		"format":  "cookie",
 	}
 
@@ -206,13 +209,13 @@ func (s *SynologySession) Login(application string) error {
 	return nil
 }
 
-func (s *SynologySession) Logout(application string) error {
+func (s *SynologySession) Logout() error {
 	endpoint := "auth.cgi"
 	params := map[string]string{
 		"api":     "SYNO.API.Auth",
 		"method":  "logout",
 		"version": "3",
-		"session": application,
+		"session": synologySessionName,
 	}
 
 	resp, err := s.httpGet(endpoint, params)
