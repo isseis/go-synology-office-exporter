@@ -29,8 +29,27 @@ type synologyAPIResponse struct {
 	} `json:"error"`
 }
 
-// loginResponseData represents the data specific to a login response
-type loginResponseData struct {
+// SynologyDriveFileID represents an identifier of a file on SynologyDrive
+type SynologyDriveFileID string
+
+const MyDrive = SynologyDriveFileID("/mydrive/")
+
+// contentType represents the type of content in a Synology Drive file
+type contentType string
+
+const ContentTypeDocument = contentType("document")
+
+func (c contentType) isValid() bool {
+	switch c {
+	case ContentTypeDocument:
+		return true
+	default:
+		return false
+	}
+}
+
+// loginResponseDataV3 represents the data specific to a login response
+type loginResponseDataV3 struct {
 	DID string `json:"did"`
 	SID string `json:"sid"`
 }
@@ -38,12 +57,89 @@ type loginResponseData struct {
 // loginResponseV3 represents the response from the Synology API after login.
 type loginResponseV3 struct {
 	synologyAPIResponse
-	Data loginResponseData `json:"data"`
+	Data loginResponseDataV3 `json:"data"`
 }
 
 // logoutResponseV3 represents the response from the Synology API after logout.
 type logoutResponseV3 struct {
 	synologyAPIResponse
+}
+
+// listResponseV2 represents a file or folder item in a Synology Drive listing
+type ListResponseItemV2 struct {
+	AccessTime    int64 `json:"access_time"`
+	AdvShared     bool  `json:"adv_shared"`
+	AppProperties struct {
+		Type string `json:"type"`
+	} `json:"app_properties"`
+	Capabilities struct {
+		CanComment  bool `json:"can_comment"`
+		CanDelete   bool `json:"can_delete"`
+		CanDownload bool `json:"can_download"`
+		CanEncrypt  bool `json:"can_encrypt"`
+		CanOrganize bool `json:"can_organize"`
+		CanPreview  bool `json:"can_preview"`
+		CanRead     bool `json:"can_read"`
+		CanRename   bool `json:"can_rename"`
+		CanShare    bool `json:"can_share"`
+		CanSync     bool `json:"can_sync"`
+		CanWrite    bool `json:"can_write"`
+	} `json:"capabilities"`
+	ChangeID               int64               `json:"change_id"`
+	ChangeTime             int64               `json:"change_time"`
+	ContentSnippet         string              `json:"content_snippet"`
+	ContentType            contentType         `json:"content_type"`
+	CreatedTime            int64               `json:"created_time"`
+	DisableDownload        bool                `json:"disable_download"`
+	DisplayPath            string              `json:"display_path"`
+	DsmPath                string              `json:"dsm_path"`
+	EnableWatermark        bool                `json:"enable_watermark"`
+	Encrypted              bool                `json:"encrypted"`
+	FileID                 SynologyDriveFileID `json:"file_id"`
+	ForceWatermarkDownload bool                `json:"force_watermark_download"`
+	Hash                   string              `json:"hash"`
+	ImageMetadata          struct {
+		Time int64 `json:"time"`
+	} `json:"image_metadata"`
+	Labels       []string `json:"labels"`
+	MaxID        int64    `json:"max_id"`
+	ModifiedTime int64    `json:"modified_time"`
+	Name         string   `json:"name"`
+	Owner        struct {
+		DisplayName string `json:"display_name"`
+		Name        string `json:"name"`
+		Nickname    string `json:"nickname"`
+		UID         int    `json:"uid"`
+	} `json:"owner"`
+	ParentID      string `json:"parent_id"`
+	Path          string `json:"path"`
+	PermanentLink string `json:"permanent_link"`
+	Properties    struct {
+		ObjectID string `json:"object_id"`
+	} `json:"properties"`
+	Removed          bool   `json:"removed"`
+	Revisions        int    `json:"revisions"`
+	Shared           bool   `json:"shared"`
+	SharedWith       []any  `json:"shared_with"`
+	Size             int64  `json:"size"`
+	Starred          bool   `json:"starred"`
+	SupportRemote    bool   `json:"support_remote"`
+	SyncID           int64  `json:"sync_id"`
+	SyncToDevice     bool   `json:"sync_to_device"`
+	Transient        bool   `json:"transient"`
+	Type             string `json:"type"`
+	VersionID        string `json:"version_id"`
+	WatermarkVersion int    `json:"watermark_version"`
+}
+
+type ListResponseDataV2 struct {
+	Items []ListResponseItemV2 `json:"items"`
+	Total int64                `json:"total"`
+}
+
+type ListResponseV2 struct {
+	synologyAPIResponse
+	Data ListResponseDataV2 `json:"data"`
 }
 
 // NewSynologySession creates a new Synology API session with the provided credentials and base URL.
@@ -107,7 +203,7 @@ func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*h
 }
 
 // Login authenticates with the Synology NAS using the session credentials.
-// It performs an API call to auth.cgi endpoint and stores the session ID for subsequent requests.
+// This stores the session ID for subsequent requests.
 // Returns:
 //   - error: HttpError if there was a network or request error
 //   - error: SynologyError if authentication failed or the response was invalid
@@ -151,7 +247,7 @@ func (s *SynologySession) Login() error {
 }
 
 // Logout terminates the current session on the Synology NAS.
-// It performs an API call to auth.cgi endpoint to invalidate the current session ID.
+// This clears the session ID for subsequent requests.
 // Returns:
 //   - error: HttpError if there was a network or request error
 //   - error: SynologyError if the logout failed or the response was invalid
@@ -184,4 +280,53 @@ func (s *SynologySession) Logout() error {
 	}
 	s.sid = ""
 	return nil
+}
+
+// List retrieves the contents of a folder on Synology Drive.
+// Parameters:
+//   - file_id: The identifier of the folder to list (e.g., MyDrive constant for the root folder)
+//
+// Returns:
+//   - *ListResponseDataV2: Data structure containing the list of items and total count
+//   - error: HttpError if there was a network or request error
+//   - error: SynologyError if the listing failed or the response was invalid
+func (s *SynologySession) List(fileID SynologyDriveFileID) (*ListResponseDataV2, error) {
+	endpoint := "entry.cgi"
+	params := map[string]string{
+		"api":            "SYNO.SynologyDrive.Files",
+		"method":         "list",
+		"version":        "2",
+		"filter":         "{}",
+		"sort_direction": "asc",
+		"sort_by":        "owner",
+		"offset":         "0",
+		"limit":          "1000",
+		"path":           string(fileID),
+	}
+
+	rawResp, err := s.httpGet(endpoint, params)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := io.ReadAll(rawResp.Body)
+	if err != nil {
+		return nil, HttpError(err.Error())
+	}
+	defer rawResp.Body.Close()
+
+	var resp ListResponseV2
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, SynologyError(err.Error())
+	}
+	if !resp.Success {
+		return nil, SynologyError(fmt.Sprintf("List folder failed: [code=%d]", resp.Err.Code))
+	}
+	for i := range resp.Data.Items {
+		item := resp.Data.Items[i]
+		if !item.ContentType.isValid() {
+			return nil, SynologyError(fmt.Sprintf("Invalid content type: %s", item.Type))
+		}
+	}
+	return &resp.Data, nil
 }
