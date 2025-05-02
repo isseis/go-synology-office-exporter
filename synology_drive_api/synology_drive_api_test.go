@@ -80,4 +80,15 @@ func Test1(t *testing.T) {
 		assert.True(t, s.sessionExpired())
 		assert.Empty(t, s.sid)
 	})
+
+	t.Run("List", func(t *testing.T) {
+		s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
+		require.Nil(t, err)
+		err = s.Login()
+		require.Nil(t, err)
+		resp, err := s.List(MyDrive)
+		require.Nil(t, err)
+		assert.Equal(t, int64(1), resp.Total)
+		t.Log(resp.Items)
+	})
 }
