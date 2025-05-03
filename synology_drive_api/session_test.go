@@ -8,7 +8,6 @@ import (
 )
 
 func TestHttpGet(t *testing.T) {
-	// TODO: Encrypt the password
 	s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
 	url := s.buildUrl("auth.cgi", map[string]string{
 		"api":     "SYNO.API.Auth",
@@ -34,7 +33,7 @@ func TestHttpGet(t *testing.T) {
 }
 
 func TestNewSynologySession(t *testing.T) {
-	// 正常なURLでセッションを作成
+	// Create a session with a valid URL
 	session, err := NewSynologySession("testuser", "testpass", "https://test.synology.com")
 	require.NoError(t, err, "NewSynologySession should not fail with valid URL")
 	assert.Equal(t, "testuser", session.username, "Username should match")
@@ -42,7 +41,7 @@ func TestNewSynologySession(t *testing.T) {
 	assert.Equal(t, "test.synology.com", session.hostname, "Hostname should match")
 	assert.Equal(t, "https", session.scheme, "Scheme should match")
 
-	// 不正なURLでセッションを作成
+	// Create a session with an invalid URL
 	_, err = NewSynologySession("testuser", "testpass", ":invalid-url")
 	assert.Error(t, err, "NewSynologySession should fail with invalid URL")
 	assert.IsType(t, InvalidUrlError(""), err, "Error should be of type InvalidUrlError")
@@ -52,10 +51,10 @@ func TestSessionExpired(t *testing.T) {
 	session, err := NewSynologySession("testuser", "testpass", "https://test.synology.com")
 	require.NoError(t, err, "Failed to create test session")
 
-	// 初期状態ではsidがなく、期限切れ
+	// Initially the session has no sid and is considered expired
 	assert.True(t, session.sessionExpired(), "New session should be expired")
 
-	// sidを設定したら期限切れではない
+	// When sid is set, the session is not expired
 	session.sid = "test-sid"
 	assert.False(t, session.sessionExpired(), "Session with sid should not be expired")
 }
@@ -64,12 +63,12 @@ func TestBuildUrl(t *testing.T) {
 	session, err := NewSynologySession("testuser", "testpass", "https://test.synology.com")
 	require.NoError(t, err, "Failed to create test session")
 
-	// パラメータなしのURL
+	// URL without parameters
 	url := session.buildUrl("test.cgi", nil)
 	expected := "https://test.synology.com/webapi/test.cgi"
 	assert.Equal(t, expected, url.String(), "URL without parameters should match expected format")
 
-	// パラメータありのURL
+	// URL with parameters
 	params := map[string]string{
 		"param1": "value1",
 		"param2": "value2",
@@ -78,7 +77,7 @@ func TestBuildUrl(t *testing.T) {
 	assert.Equal(t, "value1", url.Query().Get("param1"), "URL should contain correct param1 value")
 	assert.Equal(t, "value2", url.Query().Get("param2"), "URL should contain correct param2 value")
 
-	// sidがある場合はURLに追加される
+	// When sid exists, it should be added to the URL
 	session.sid = "test-sid"
 	url = session.buildUrl("test.cgi", nil)
 	assert.Equal(t, "test-sid", url.Query().Get("_sid"), "URL should include session ID when available")
