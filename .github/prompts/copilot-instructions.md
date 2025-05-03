@@ -7,7 +7,7 @@
   - Conduct additional reviews when there are potential security risks.
   - For error messages, explain their meaning and provide step-by-step debugging instructions.
   - Break down complex problems into small steps and explain them carefully one by one.
-  - When running git command, clear PAGER environment varialbe.
+  - When running git command, clear PAGER environment variable.
 
 ## Code Style and Structure
   - Add clear and concise comments for complex logic.
