@@ -184,6 +184,7 @@ func convertSharedWithItems(items []jsonSharedWithItem) []SharedWithItem {
 // toListResponseItem converts the JSON representation to the Go friendly representation
 func (j jsonListResponseItemV2) toListResponseItem() ListResponseItem {
 	return ListResponseItem{
+		// Convert Unix timestamp (seconds since epoch) to time.Time
 		AccessTime: time.Unix(j.AccessTime, 0),
 		AdvShared:  j.AdvShared,
 		AppProperties: struct {
