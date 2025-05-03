@@ -2,4 +2,4 @@
 - Run pre-commit hooks and fix any errors.
 - When executing git diff commands, include the --no-pager option. (i.e. git --no-pager diff --staged)
 - Draft a commit message in English based on the staged changes.
-- Ask for confirmation before committing with the proposed message, and proceed only with user approval.
+- Ask for confirmation before committing with the proposed message using a "y/n" prompt, and proceed only with user approval.
