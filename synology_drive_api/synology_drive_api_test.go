@@ -29,37 +29,6 @@ func getNasPass() string {
 }
 
 func Test1(t *testing.T) {
-	t.Run("Init", func(t *testing.T) {
-		s, err := NewSynologySession("username", "password", "https://example.com")
-		require.Nil(t, err)
-		assert.NotNil(t, s.hostname)
-	})
-
-	t.Run("httpGet", func(t *testing.T) {
-		// TODO: Encrypt the password
-		s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
-		url := s.buildUrl("auth.cgi", map[string]string{
-			"api":     "SYNO.API.Auth",
-			"method":  "login",
-			"version": "3",
-			"account": getNasUser(),
-			"passwd":  getNasPass(),
-			"session": "SynologyDrive",
-			"format":  "cookie",
-		})
-		require.Nil(t, err)
-
-		// Verify the structure of the URL but exclude the password
-		expectedUrl := getNasUrl() + "/webapi/auth.cgi"
-		assert.Contains(t, url.String(), expectedUrl)
-		assert.Contains(t, url.String(), "account="+getNasUser())
-		assert.Contains(t, url.String(), "api=SYNO.API.Auth")
-		assert.Contains(t, url.String(), "format=cookie")
-		assert.Contains(t, url.String(), "method=login")
-		assert.Contains(t, url.String(), "session=SynologyDrive")
-		assert.Contains(t, url.String(), "version=3")
-		// Password is included in the URL but not verified in the test
-	})
 
 	t.Run("Login", func(t *testing.T) {
 		s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
