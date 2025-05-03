@@ -75,7 +75,7 @@ type ListResponseItemV2 struct {
 
 type ListResponseDataV2 struct {
 	Items []ListResponseItemV2 `json:"items"`
-	Total int64                `json:"total"`
+	Total int                  `json:"total"`
 }
 
 type ListResponseV2 struct {
