@@ -8,6 +8,9 @@ type synologyAPIResponse struct {
 	} `json:"error"`
 }
 
+// UserID represents an identifier of a user on SynologyDrive
+type UserID int
+
 // FileID represents an identifier of a file on SynologyDrive
 type FileID string
 
@@ -56,6 +59,20 @@ const RoleManager = Role("organizer")
 func (r Role) isValid() bool {
 	switch r {
 	case RoleCommenter, RolePreviewer, RolePreviewCommenter, RoleViewer, RoleEditor, RoleManager:
+		return true
+	default:
+		return false
+	}
+}
+
+type SharedTarget string
+
+const SharedTargetUser = SharedTarget("user")
+const SharedTargetGroup = SharedTarget("group")
+
+func (s SharedTarget) isValid() bool {
+	switch s {
+	case SharedTargetUser, SharedTargetGroup:
 		return true
 	default:
 		return false

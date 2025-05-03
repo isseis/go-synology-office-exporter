@@ -9,13 +9,13 @@ import (
 
 // jsonSharedWithItem represents a user or group that a file or folder is shared with
 type jsonSharedWithItem struct {
-	DisplayName  string `json:"display_name"`
-	Inherited    bool   `json:"inherited"`
-	Name         string `json:"name"`
-	Nickname     string `json:"nickname"`
-	PermissionID string `json:"permission_id"`
-	Role         Role   `json:"role"`
-	Type         string `json:"type"` // e.g., "user"
+	DisplayName  string       `json:"display_name"`
+	Inherited    bool         `json:"inherited"`
+	Name         string       `json:"name"`
+	Nickname     string       `json:"nickname"`
+	PermissionID string       `json:"permission_id"`
+	Role         Role         `json:"role"`
+	Type         SharedTarget `json:"type"`
 }
 
 // listResponseV2 represents a file or folder item in a Synology Drive listing
@@ -62,7 +62,7 @@ type jsonListResponseItemV2 struct {
 		DisplayName string `json:"display_name"`
 		Name        string `json:"name"`
 		Nickname    string `json:"nickname"`
-		UID         int    `json:"uid"`
+		UID         UserID `json:"uid"`
 	} `json:"owner"`
 	ParentID      FileID `json:"parent_id"`
 	Path          string `json:"path"`
@@ -102,9 +102,10 @@ type SharedWithItem struct {
 	Nickname     string
 	PermissionID string
 	Role         Role
-	Type         string
+	Type         SharedTarget
 }
 
+// ListResponseItem represents a file or folder item in a Synology Drive listing with proper Go types
 type ListResponseItem struct {
 	AccessTime    time.Time
 	AdvShared     bool
@@ -148,7 +149,7 @@ type ListResponseItem struct {
 		DisplayName string
 		Name        string
 		Nickname    string
-		UID         int
+		UID         UserID
 	}
 	ParentID      FileID
 	Path          string
@@ -169,6 +170,107 @@ type ListResponseItem struct {
 	Type             Type
 	VersionID        string
 	WatermarkVersion int
+}
+
+// convertSharedWithItems converts a slice of jsonSharedWithItem to a slice of SharedWithItem
+func convertSharedWithItems(items []jsonSharedWithItem) []SharedWithItem {
+	result := make([]SharedWithItem, len(items))
+	for i, item := range items {
+		result[i] = SharedWithItem(item)
+	}
+	return result
+}
+
+// toListResponseItem converts the JSON representation to the Go friendly representation
+func (j jsonListResponseItemV2) toListResponseItem() ListResponseItem {
+	return ListResponseItem{
+		AccessTime: time.Unix(j.AccessTime, 0),
+		AdvShared:  j.AdvShared,
+		AppProperties: struct {
+			Type string
+		}{
+			Type: j.AppProperties.Type,
+		},
+		Capabilities: struct {
+			CanComment  bool
+			CanDelete   bool
+			CanDownload bool
+			CanEncrypt  bool
+			CanOrganize bool
+			CanPreview  bool
+			CanRead     bool
+			CanRename   bool
+			CanShare    bool
+			CanSync     bool
+			CanWrite    bool
+		}{
+			CanComment:  j.Capabilities.CanComment,
+			CanDelete:   j.Capabilities.CanDelete,
+			CanDownload: j.Capabilities.CanDownload,
+			CanEncrypt:  j.Capabilities.CanEncrypt,
+			CanOrganize: j.Capabilities.CanOrganize,
+			CanPreview:  j.Capabilities.CanPreview,
+			CanRead:     j.Capabilities.CanRead,
+			CanRename:   j.Capabilities.CanRename,
+			CanShare:    j.Capabilities.CanShare,
+			CanSync:     j.Capabilities.CanSync,
+			CanWrite:    j.Capabilities.CanWrite,
+		},
+		ChangeID:               j.ChangeID,
+		ChangeTime:             time.Unix(j.ChangeTime, 0),
+		ContentSnippet:         j.ContentSnippet,
+		ContentType:            j.ContentType,
+		CreatedTime:            time.Unix(j.CreatedTime, 0),
+		DisableDownload:        j.DisableDownload,
+		DisplayPath:            j.DisplayPath,
+		DsmPath:                j.DsmPath,
+		EnableWatermark:        j.EnableWatermark,
+		Encrypted:              j.Encrypted,
+		FileID:                 j.FileID,
+		ForceWatermarkDownload: j.ForceWatermarkDownload,
+		Hash:                   j.Hash,
+		ImageMetadata: struct {
+			Time time.Time
+		}{
+			Time: time.Unix(j.ImageMetadata.Time, 0),
+		},
+		Labels:       j.Labels,
+		MaxID:        j.MaxID,
+		ModifiedTime: time.Unix(j.ModifiedTime, 0),
+		Name:         j.Name,
+		Owner: struct {
+			DisplayName string
+			Name        string
+			Nickname    string
+			UID         UserID
+		}{
+			DisplayName: j.Owner.DisplayName,
+			Name:        j.Owner.Name,
+			Nickname:    j.Owner.Nickname,
+			UID:         j.Owner.UID,
+		},
+		ParentID:      j.ParentID,
+		Path:          j.Path,
+		PermanentLink: j.PermanentLink,
+		Properties: struct {
+			ObjectID string
+		}{
+			ObjectID: j.Properties.ObjectID,
+		},
+		Removed:          j.Removed,
+		Revisions:        j.Revisions,
+		Shared:           j.Shared,
+		SharedWith:       convertSharedWithItems(j.SharedWith),
+		Size:             j.Size,
+		Starred:          j.Starred,
+		SupportRemote:    j.SupportRemote,
+		SyncID:           j.SyncID,
+		SyncToDevice:     j.SyncToDevice,
+		Transient:        j.Transient,
+		Type:             j.Type,
+		VersionID:        j.VersionID,
+		WatermarkVersion: j.WatermarkVersion,
+	}
 }
 
 type ListResponse struct {
@@ -230,6 +332,9 @@ func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 			if !sharedWith.Role.isValid() {
 				return nil, SynologyError(fmt.Sprintf("Invalid role: %s", sharedWith.Role))
 			}
+			if !sharedWith.Type.isValid() {
+				return nil, SynologyError(fmt.Sprintf("Invalid type: %s", sharedWith.Type))
+			}
 		}
 	}
 
@@ -238,107 +343,11 @@ func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 		Total: jsonResponse.Data.Total,
 		raw:   body,
 	}
-	// Convert jsonListResponseItemV2 to ListResponseItem
-	// and populate the ListResponse struct
+
+	// Convert jsonListResponseItemV2 to ListResponseItem using the conversion method
 	for i, item := range jsonResponse.Data.Items {
-		resp.Items[i] = ListResponseItem{
-			AccessTime: time.Unix(item.AccessTime, 0),
-			AdvShared:  item.AdvShared,
-			AppProperties: struct {
-				Type string
-			}{
-				Type: item.AppProperties.Type,
-			},
-			Capabilities: struct {
-				CanComment  bool
-				CanDelete   bool
-				CanDownload bool
-				CanEncrypt  bool
-				CanOrganize bool
-				CanPreview  bool
-				CanRead     bool
-				CanRename   bool
-				CanShare    bool
-				CanSync     bool
-				CanWrite    bool
-			}{
-				CanComment:  item.Capabilities.CanComment,
-				CanDelete:   item.Capabilities.CanDelete,
-				CanDownload: item.Capabilities.CanDownload,
-				CanEncrypt:  item.Capabilities.CanEncrypt,
-				CanOrganize: item.Capabilities.CanOrganize,
-				CanPreview:  item.Capabilities.CanPreview,
-				CanRead:     item.Capabilities.CanRead,
-				CanRename:   item.Capabilities.CanRename,
-				CanShare:    item.Capabilities.CanShare,
-				CanSync:     item.Capabilities.CanSync,
-				CanWrite:    item.Capabilities.CanWrite,
-			},
-			ChangeID:               item.ChangeID,
-			ChangeTime:             time.Unix(item.ChangeTime, 0),
-			ContentSnippet:         item.ContentSnippet,
-			ContentType:            item.ContentType,
-			CreatedTime:            time.Unix(item.CreatedTime, 0),
-			DisableDownload:        item.DisableDownload,
-			DisplayPath:            item.DisplayPath,
-			DsmPath:                item.DsmPath,
-			EnableWatermark:        item.EnableWatermark,
-			Encrypted:              item.Encrypted,
-			FileID:                 item.FileID,
-			ForceWatermarkDownload: item.ForceWatermarkDownload,
-			Hash:                   item.Hash,
-			ImageMetadata: struct {
-				Time time.Time
-			}{
-				Time: time.Unix(item.ImageMetadata.Time, 0),
-			},
-			Labels:       item.Labels,
-			MaxID:        item.MaxID,
-			ModifiedTime: time.Unix(item.ModifiedTime, 0),
-			Name:         item.Name,
-			Owner: struct {
-				DisplayName string
-				Name        string
-				Nickname    string
-				UID         int
-			}{
-				DisplayName: item.Owner.DisplayName,
-				Name:        item.Owner.Name,
-				Nickname:    item.Owner.Nickname,
-				UID:         item.Owner.UID,
-			},
-			ParentID:      item.ParentID,
-			Path:          item.Path,
-			PermanentLink: item.PermanentLink,
-			Properties: struct {
-				ObjectID string
-			}{
-				ObjectID: item.Properties.ObjectID,
-			},
-			Removed:          item.Removed,
-			Revisions:        item.Revisions,
-			Shared:           item.Shared,
-			SharedWith:       convertSharedWithItems(item.SharedWith),
-			Size:             item.Size,
-			Starred:          item.Starred,
-			SupportRemote:    item.SupportRemote,
-			SyncID:           item.SyncID,
-			SyncToDevice:     item.SyncToDevice,
-			Transient:        item.Transient,
-			Type:             item.Type,
-			VersionID:        item.VersionID,
-			WatermarkVersion: item.WatermarkVersion,
-		}
+		resp.Items[i] = item.toListResponseItem()
 	}
 
 	return &resp, nil
-}
-
-// convertSharedWithItems converts a slice of jsonSharedWithItem to a slice of SharedWithItem
-func convertSharedWithItems(items []jsonSharedWithItem) []SharedWithItem {
-	result := make([]SharedWithItem, len(items))
-	for i, item := range items {
-		result[i] = SharedWithItem(item)
-	}
-	return result
 }
