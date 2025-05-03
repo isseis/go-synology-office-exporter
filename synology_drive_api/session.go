@@ -45,20 +45,20 @@ func (s *SynologySession) sessionExpired() bool {
 }
 
 func (s *SynologySession) buildUrl(endpoint string, params map[string]string) *url.URL {
-	url := &url.URL{
+	reqUrl := &url.URL{
 		Scheme: s.scheme,
 		Host:   s.hostname,
 		Path:   "webapi/" + endpoint,
 	}
-	query := url.Query()
+	query := reqUrl.Query()
 	for param, value := range params {
 		query.Set(param, value)
 	}
 	if !s.sessionExpired() {
 		query.Set("_sid", s.sid)
 	}
-	url.RawQuery = query.Encode()
-	return url
+	reqUrl.RawQuery = query.Encode()
+	return reqUrl
 }
 
 func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*http.Response, error) {
