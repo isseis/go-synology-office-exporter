@@ -14,6 +14,12 @@ func TestList(t *testing.T) {
 	require.Nil(t, err)
 	resp, err := s.List(MyDrive)
 	require.Nil(t, err)
-	assert.Equal(t, int64(1), resp.Total)
-	t.Log(resp.Items)
+
+	for _, item := range resp.Items {
+		t.Log(item.FileID, item.DisplayPath, item.Name, item.Path, item.ContentType)
+		assert.NotEmpty(t, item.FileID)
+		assert.NotEmpty(t, item.Name)
+		assert.NotEmpty(t, item.Path)
+		t.Log(item.ContentType)
+	}
 }

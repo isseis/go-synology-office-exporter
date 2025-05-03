@@ -17,10 +17,12 @@ const MyDrive = SynologyDriveFileID("/mydrive/")
 type contentType string
 
 const ContentTypeDocument = contentType("document")
+const ContentTypeDirectory = contentType("dir")
+const ContentTypeFile = contentType("file")
 
 func (c contentType) isValid() bool {
 	switch c {
-	case ContentTypeDocument:
+	case ContentTypeDocument, ContentTypeDirectory, ContentTypeFile:
 		return true
 	default:
 		return false
