@@ -7,26 +7,26 @@ import (
 	"time"
 )
 
-// jsonListResponseItemV2 represents a file or folder item in a Synology Drive listing
+// jsonGetResponseDataV3 represents the data specific to a file or folder item in a Synology Drive get response
 // in the raw JSON API response
-type jsonListResponseItemV2 struct {
+type jsonGetResponseDataV3 struct {
 	AccessTime    int64 `json:"access_time"`
 	AdvShared     bool  `json:"adv_shared"`
 	AppProperties struct {
 		Type string `json:"type"`
 	} `json:"app_properties"`
 	Capabilities           jsonCapabilities `json:"capabilities"`
-	ChangeID               int64            `json:"change_id"`
+	ChangeID               int              `json:"change_id"`
 	ChangeTime             int64            `json:"change_time"`
 	ContentSnippet         string           `json:"content_snippet"`
-	ContentType            contentType      `json:"content_type"`
+	ContentType            string           `json:"content_type"`
 	CreatedTime            int64            `json:"created_time"`
 	DisableDownload        bool             `json:"disable_download"`
 	DisplayPath            string           `json:"display_path"`
 	DsmPath                string           `json:"dsm_path"`
 	EnableWatermark        bool             `json:"enable_watermark"`
 	Encrypted              bool             `json:"encrypted"`
-	FileID                 FileID           `json:"file_id"`
+	FileID                 string           `json:"file_id"`
 	ForceWatermarkDownload bool             `json:"force_watermark_download"`
 	Hash                   string           `json:"hash"`
 	ImageMetadata          struct {
@@ -58,39 +58,32 @@ type jsonListResponseItemV2 struct {
 	WatermarkVersion int64            `json:"watermark_version"`
 }
 
-// jsonListResponseDataV2 represents the data section of a list response
-// containing items and total count
-type jsonListResponseDataV2 struct {
-	Items []jsonListResponseItemV2 `json:"items"`
-	Total int64                    `json:"total"`
-}
-
-// jsonListResponseV2 represents the complete response from listing files or folders
-type jsonListResponseV2 struct {
+// jsonGetResponseV3 represents the response from the Synology API when getting file details
+type jsonGetResponseV3 struct {
 	synologyAPIResponse
-	Data jsonListResponseDataV2 `json:"data"`
+	Data jsonGetResponseDataV3 `json:"data"`
 }
 
-// ListResponseItem represents a file or folder item in a Synology Drive listing
+// GetResponse represents a single file or folder item's details from Synology Drive
 // with proper Go types for improved usability
-type ListResponseItem struct {
+type GetResponse struct {
 	AccessTime    time.Time
 	AdvShared     bool
 	AppProperties struct {
 		Type string
 	}
 	Capabilities           Capabilities
-	ChangeID               int64
+	ChangeID               int
 	ChangeTime             time.Time
 	ContentSnippet         string
-	ContentType            contentType
+	ContentType            string
 	CreatedTime            time.Time
 	DisableDownload        bool
 	DisplayPath            string
 	DsmPath                string
 	EnableWatermark        bool
 	Encrypted              bool
-	FileID                 FileID
+	FileID                 string
 	ForceWatermarkDownload bool
 	Hash                   string
 	ImageMetadata          struct {
@@ -120,13 +113,14 @@ type ListResponseItem struct {
 	Type             ObjectType
 	VersionID        string
 	WatermarkVersion int64
+
+	raw []byte // Stores the original raw JSON response
 }
 
-// toListResponseItem converts the JSON representation to the Go friendly representation
+// toResponse converts the JSON response data to a more usable Go structure
 // with proper types such as time.Time instead of Unix timestamps
-func (j *jsonListResponseItemV2) toListResponseItem() *ListResponseItem {
-	return &ListResponseItem{
-		// Convert Unix timestamp (seconds since epoch) to time.Time
+func (j *jsonGetResponseDataV3) toResponse() *GetResponse {
+	return &GetResponse{
 		AccessTime: time.Unix(j.AccessTime, 0),
 		AdvShared:  j.AdvShared,
 		AppProperties: struct {
@@ -182,36 +176,22 @@ func (j *jsonListResponseItemV2) toListResponseItem() *ListResponseItem {
 	}
 }
 
-// ListResponse represents the complete response from listing files or folders
-// with proper Go types for improved usability
-type ListResponse struct {
-	Items []*ListResponseItem
-	Total int64
-	raw   []byte // Stores the original raw JSON response
-}
-
-// List retrieves the contents of a folder on Synology Drive.
+// Get retrieves detailed information about a specific file or folder on Synology Drive.
 // Parameters:
-//   - fileID: The identifier of the folder to list (e.g., MyDrive constant for the root folder)
+//   - fileID: The identifier of the file or folder to get details for
 //
 // Returns:
-//   - *ListResponse: Data structure containing the list of items and total count
+//   - *GetResponse: Data structure containing detailed file information with proper Go types
 //   - error: HttpError if there was a network or request error
-//   - error: SynologyError if the listing failed or the response was invalid
-func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
+//   - error: SynologyError if the get operation failed or the response was invalid
+func (s *SynologySession) Get(fileID FileID) (*GetResponse, error) {
 	endpoint := "entry.cgi"
 	params := map[string]string{
-		"api":            "SYNO.SynologyDrive.Files",
-		"method":         "list",
-		"version":        "2",
-		"filter":         "{}",
-		"sort_direction": "asc",
-		"sort_by":        "owner",
-		"offset":         "0",
-		"limit":          "1000",
-		"path":           string(fileID),
+		"api":     "SYNO.SynologyDrive.Files",
+		"method":  "get",
+		"version": "3",
+		"path":    "id:" + string(fileID),
 	}
-
 	httpResponse, err := s.httpGet(endpoint, params)
 	if err != nil {
 		return nil, err
@@ -223,42 +203,16 @@ func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 		return nil, HttpError(err.Error())
 	}
 
-	var jsonResponse jsonListResponseV2
+	var jsonResponse jsonGetResponseV3
 	if err := json.Unmarshal(body, &jsonResponse); err != nil {
 		return nil, SynologyError(err.Error())
 	}
 	if !jsonResponse.Success {
-		return nil, SynologyError(fmt.Sprintf("List folder failed: [code=%d]", jsonResponse.Err.Code))
-	}
-	for i := range jsonResponse.Data.Items {
-		item := jsonResponse.Data.Items[i]
-		if !item.ContentType.isValid() {
-			return nil, SynologyError(fmt.Sprintf("Invalid content type: %s", item.ContentType))
-		}
-		if !item.Type.isValid() {
-			return nil, SynologyError(fmt.Sprintf("Invalid type: %s", item.Type))
-		}
-		for j := range item.SharedWith {
-			sharedWith := item.SharedWith[j]
-			if !sharedWith.Role.isValid() {
-				return nil, SynologyError(fmt.Sprintf("Invalid role: %s", sharedWith.Role))
-			}
-			if !sharedWith.Type.isValid() {
-				return nil, SynologyError(fmt.Sprintf("Invalid type: %s", sharedWith.Type))
-			}
-		}
+		jsonErr := jsonResponse.Err
+		return nil, SynologyError(fmt.Sprintf("Get failed: %s [code=%d, line=%d]", jsonErr.Errors.Message, jsonErr.Code, jsonErr.Errors.Line))
 	}
 
-	resp := ListResponse{
-		Items: make([]*ListResponseItem, len(jsonResponse.Data.Items)),
-		Total: jsonResponse.Data.Total,
-		raw:   body,
-	}
-
-	// Convert jsonListResponseItemV2 to ListResponseItem using the conversion method
-	for i, item := range jsonResponse.Data.Items {
-		resp.Items[i] = item.toListResponseItem()
-	}
-
-	return &resp, nil
+	resp := jsonResponse.Data.toResponse()
+	resp.raw = body
+	return resp, nil
 }

@@ -76,9 +76,4 @@ func TestBuildUrl(t *testing.T) {
 	url = session.buildUrl("test.cgi", params)
 	assert.Equal(t, "value1", url.Query().Get("param1"), "URL should contain correct param1 value")
 	assert.Equal(t, "value2", url.Query().Get("param2"), "URL should contain correct param2 value")
-
-	// When sid exists, it should be added to the URL
-	session.sid = "test-sid"
-	url = session.buildUrl("test.cgi", nil)
-	assert.Equal(t, "test-sid", url.Query().Get("_sid"), "URL should include session ID when available")
 }

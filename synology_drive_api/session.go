@@ -6,13 +6,14 @@ import (
 	"net/url"
 )
 
+// SynologySession represents a session with a Synology NAS
 type SynologySession struct {
-	username    string // Username for login on Synology NAS
-	password    string // Password for login on Synology NAS
-	hostname    string // Hostname of Synology NAS
-	scheme      string // URL scheme (http or https)
-	sid         string // session id (set after login)
-	http_client http.Client
+	username    string      // Username for login on Synology NAS
+	password    string      // Password for login on Synology NAS
+	hostname    string      // Hostname of Synology NAS
+	scheme      string      // URL scheme (http or https)
+	sid         SessionID   // Session ID (set after login)
+	http_client http.Client // HTTP client with cookie support
 }
 
 // NewSynologySession creates a new Synology API session with the provided credentials and base URL.
@@ -40,10 +41,18 @@ func NewSynologySession(username string, password string, base_url string) (*Syn
 	}, nil
 }
 
+// sessionExpired checks if the session ID is empty, indicating an expired or non-existent session
 func (s *SynologySession) sessionExpired() bool {
 	return s.sid == ""
 }
 
+// buildUrl constructs a URL for an API endpoint with the specified parameters
+// Parameters:
+//   - endpoint: The API endpoint path
+//   - params: Query parameters to include in the URL
+//
+// Returns:
+//   - *url.URL: A URL object with the constructed URL
 func (s *SynologySession) buildUrl(endpoint string, params map[string]string) *url.URL {
 	reqUrl := &url.URL{
 		Scheme: s.scheme,
@@ -54,16 +63,22 @@ func (s *SynologySession) buildUrl(endpoint string, params map[string]string) *u
 	for param, value := range params {
 		query.Set(param, value)
 	}
-	if !s.sessionExpired() {
-		query.Set("_sid", s.sid)
-	}
 	reqUrl.RawQuery = query.Encode()
 	return reqUrl
 }
 
-func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*http.Response, error) {
+// httpRequest sends an HTTP request to the Synology NAS API
+// Parameters:
+//   - method: The HTTP method to use (GET, POST, etc.)
+//   - endpoint: The API endpoint path
+//   - params: Query parameters to include in the URL
+//
+// Returns:
+//   - *http.Response: The HTTP response from the API
+//   - error: An error of type HttpError if the request failed
+func (s *SynologySession) httpRequest(method string, endpoint string, params map[string]string) (*http.Response, error) {
 	url := s.buildUrl(endpoint, params)
-	req, err := http.NewRequest(http.MethodGet, url.String(), nil)
+	req, err := http.NewRequest(method, url.String(), nil)
 	if err != nil {
 		return nil, HttpError(err.Error())
 	}
@@ -72,5 +87,18 @@ func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*h
 	if err != nil {
 		return nil, HttpError(err.Error())
 	}
+
 	return res, nil
+}
+
+// httpGet sends a GET request to the Synology NAS API
+// Parameters:
+//   - endpoint: The API endpoint path
+//   - params: Query parameters to include in the URL
+//
+// Returns:
+//   - *http.Response: The HTTP response from the API
+//   - error: An error if the request failed
+func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*http.Response, error) {
+	return s.httpRequest(http.MethodGet, endpoint, params)
 }
