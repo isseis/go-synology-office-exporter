@@ -11,8 +11,8 @@ const synologySessionName = "SynologyDrive"
 
 // loginResponseDataV3 represents the data specific to a login response
 type loginResponseDataV3 struct {
-	DID string `json:"did"`
-	SID string `json:"sid"`
+	DID string `json:"did"` // Device ID
+	SID string `json:"sid"` // Session ID
 }
 
 // loginResponseV3 represents the response from the Synology API after login.

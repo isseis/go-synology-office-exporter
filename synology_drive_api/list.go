@@ -7,7 +7,8 @@ import (
 	"time"
 )
 
-// listResponseV2 represents a file or folder item in a Synology Drive listing
+// jsonListResponseItemV2 represents a file or folder item in a Synology Drive listing
+// in the raw JSON API response
 type jsonListResponseItemV2 struct {
 	AccessTime    int64 `json:"access_time"`
 	AdvShared     bool  `json:"adv_shared"`
@@ -52,22 +53,26 @@ type jsonListResponseItemV2 struct {
 	SyncID           int64            `json:"sync_id"`
 	SyncToDevice     bool             `json:"sync_to_device"`
 	Transient        bool             `json:"transient"`
-	Type             FileType         `json:"type"`
+	Type             ObjectType       `json:"type"`
 	VersionID        string           `json:"version_id"`
 	WatermarkVersion int64            `json:"watermark_version"`
 }
 
+// jsonListResponseDataV2 represents the data section of a list response
+// containing items and total count
 type jsonListResponseDataV2 struct {
 	Items []jsonListResponseItemV2 `json:"items"`
 	Total int64                    `json:"total"`
 }
 
+// jsonListResponseV2 represents the complete response from listing files or folders
 type jsonListResponseV2 struct {
 	synologyAPIResponse
 	Data jsonListResponseDataV2 `json:"data"`
 }
 
-// ListResponseItem represents a file or folder item in a Synology Drive listing with proper Go types
+// ListResponseItem represents a file or folder item in a Synology Drive listing
+// with proper Go types for improved usability
 type ListResponseItem struct {
 	AccessTime    time.Time
 	AdvShared     bool
@@ -112,12 +117,13 @@ type ListResponseItem struct {
 	SyncID           int64
 	SyncToDevice     bool
 	Transient        bool
-	Type             FileType
+	Type             ObjectType
 	VersionID        string
 	WatermarkVersion int64
 }
 
 // toListResponseItem converts the JSON representation to the Go friendly representation
+// with proper types such as time.Time instead of Unix timestamps
 func (j *jsonListResponseItemV2) toListResponseItem() *ListResponseItem {
 	return &ListResponseItem{
 		// Convert Unix timestamp (seconds since epoch) to time.Time
@@ -176,18 +182,20 @@ func (j *jsonListResponseItemV2) toListResponseItem() *ListResponseItem {
 	}
 }
 
+// ListResponse represents the complete response from listing files or folders
+// with proper Go types for improved usability
 type ListResponse struct {
 	Items []*ListResponseItem
 	Total int64
-	raw   []byte
+	raw   []byte // Stores the original raw JSON response
 }
 
 // List retrieves the contents of a folder on Synology Drive.
 // Parameters:
-//   - file_id: The identifier of the folder to list (e.g., MyDrive constant for the root folder)
+//   - fileID: The identifier of the folder to list (e.g., MyDrive constant for the root folder)
 //
 // Returns:
-//   - *ListResponseDataV2: Data structure containing the list of items and total count
+//   - *ListResponse: Data structure containing the list of items and total count
 //   - error: HttpError if there was a network or request error
 //   - error: SynologyError if the listing failed or the response was invalid
 func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {

@@ -74,20 +74,27 @@ const SYNOLOGY_LOGIN_ERROR_PASSWORD_EXPIRED = 409
 const SYNOLOGY_LOGIN_ERROR_PASSWORD_MUST_BE_CHANGED = 410
 
 // Error types for Synology API interactions
+
+// InvalidUrlError represents an error for invalid URL format
 type InvalidUrlError string
 
+// Error returns a formatted error message for InvalidUrlError
 func (e InvalidUrlError) Error() string {
 	return "invalid URL " + strconv.Quote(string(e)) + " in base_url"
 }
 
+// HttpError represents a general HTTP error when communicating with the Synology API
 type HttpError string
 
+// Error returns a formatted error message for HttpError
 func (e HttpError) Error() string {
 	return "http error " + strconv.Quote(string(e))
 }
 
+// SynologyError represents an error returned by the Synology API
 type SynologyError string
 
+// Error returns a formatted error message for SynologyError
 func (e SynologyError) Error() string {
 	return "synology error " + strconv.Quote(string(e))
 }

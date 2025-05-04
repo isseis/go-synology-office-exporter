@@ -8,6 +8,7 @@ import (
 )
 
 // jsonGetResponseDataV3 represents the data specific to a file or folder item in a Synology Drive get response
+// in the raw JSON API response
 type jsonGetResponseDataV3 struct {
 	AccessTime    int64 `json:"access_time"`
 	AdvShared     bool  `json:"adv_shared"`
@@ -52,16 +53,19 @@ type jsonGetResponseDataV3 struct {
 	SyncID           int64            `json:"sync_id"`
 	SyncToDevice     bool             `json:"sync_to_device"`
 	Transient        bool             `json:"transient"`
-	Type             FileType         `json:"type"`
+	Type             ObjectType       `json:"type"`
 	VersionID        string           `json:"version_id"`
 	WatermarkVersion int64            `json:"watermark_version"`
 }
 
+// jsonGetResponseV3 represents the response from the Synology API when getting file details
 type jsonGetResponseV3 struct {
 	synologyAPIResponse
 	Data jsonGetResponseDataV3 `json:"data"`
 }
 
+// GetResponse represents a single file or folder item's details from Synology Drive
+// with proper Go types for improved usability
 type GetResponse struct {
 	AccessTime    time.Time
 	AdvShared     bool
@@ -106,13 +110,15 @@ type GetResponse struct {
 	SyncID           int64
 	SyncToDevice     bool
 	Transient        bool
-	Type             FileType
+	Type             ObjectType
 	VersionID        string
 	WatermarkVersion int64
 
-	raw []byte
+	raw []byte // Stores the original raw JSON response
 }
 
+// toResponse converts the JSON response data to a more usable Go structure
+// with proper types such as time.Time instead of Unix timestamps
 func (j *jsonGetResponseDataV3) toResponse() *GetResponse {
 	return &GetResponse{
 		AccessTime: time.Unix(j.AccessTime, 0),
@@ -170,6 +176,14 @@ func (j *jsonGetResponseDataV3) toResponse() *GetResponse {
 	}
 }
 
+// Get retrieves detailed information about a specific file or folder on Synology Drive.
+// Parameters:
+//   - fileID: The identifier of the file or folder to get details for
+//
+// Returns:
+//   - *GetResponse: Data structure containing detailed file information with proper Go types
+//   - error: HttpError if there was a network or request error
+//   - error: SynologyError if the get operation failed or the response was invalid
 func (s *SynologySession) Get(fileID FileID) (*GetResponse, error) {
 	endpoint := "entry.cgi"
 	params := map[string]string{
