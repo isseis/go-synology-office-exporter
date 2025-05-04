@@ -61,9 +61,9 @@ func (s *SynologySession) buildUrl(endpoint string, params map[string]string) *u
 	return reqUrl
 }
 
-func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*http.Response, error) {
+func (s *SynologySession) httpRequest(method string, endpoint string, params map[string]string) (*http.Response, error) {
 	url := s.buildUrl(endpoint, params)
-	req, err := http.NewRequest(http.MethodGet, url.String(), nil)
+	req, err := http.NewRequest(method, url.String(), nil)
 	if err != nil {
 		return nil, HttpError(err.Error())
 	}
@@ -73,4 +73,8 @@ func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*h
 		return nil, HttpError(err.Error())
 	}
 	return res, nil
+}
+
+func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*http.Response, error) {
+	return s.httpRequest(http.MethodGet, endpoint, params)
 }
