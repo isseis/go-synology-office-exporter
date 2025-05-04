@@ -13,6 +13,7 @@ func TestGet(t *testing.T) {
 	// Test fails since the session is not logged in
 	_, err = s.Get("882614125167948399")
 	require.NotNil(t, err)
+	t.Log("Error:", err)
 
 	// Test succeeds after logging in
 	err = s.Login()

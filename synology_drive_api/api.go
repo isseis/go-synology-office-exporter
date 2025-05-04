@@ -5,9 +5,21 @@ package synology_drive_api
 type synologyAPIResponse struct {
 	Success bool `json:"success"`
 	Err     struct {
-		Code int `json:"code"`
+		Code   int `json:"code"`
+		Errors struct {
+			Line    int    `json:"line"`
+			Message string `json:"message"`
+		}
 	} `json:"error"`
 }
+
+// SessionID represents the session identifier for a Synology session,
+// which is issued by the Synology API upon successful login
+// and is used for subsequent API calls.
+type SessionID string
+
+// DeviceID represents a unique identifier for a Synology devices
+type DeviceID string
 
 // UserID represents an identifier of a user on SynologyDrive
 type UserID int

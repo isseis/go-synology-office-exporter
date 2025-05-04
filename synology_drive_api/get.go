@@ -208,7 +208,8 @@ func (s *SynologySession) Get(fileID FileID) (*GetResponse, error) {
 		return nil, SynologyError(err.Error())
 	}
 	if !jsonResponse.Success {
-		return nil, SynologyError(fmt.Sprintf("Get failed: [code=%d]", jsonResponse.Err.Code))
+		jsonErr := jsonResponse.Err
+		return nil, SynologyError(fmt.Sprintf("Get failed: %s [code=%d, line=%d]", jsonErr.Errors.Message, jsonErr.Code, jsonErr.Errors.Line))
 	}
 
 	resp := jsonResponse.Data.toResponse()

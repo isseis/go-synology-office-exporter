@@ -12,7 +12,7 @@ type SynologySession struct {
 	password    string      // Password for login on Synology NAS
 	hostname    string      // Hostname of Synology NAS
 	scheme      string      // URL scheme (http or https)
-	sid         string      // Session ID (set after login)
+	sid         SessionID   // Session ID (set after login)
 	http_client http.Client // HTTP client with cookie support
 }
 
@@ -63,9 +63,6 @@ func (s *SynologySession) buildUrl(endpoint string, params map[string]string) *u
 	for param, value := range params {
 		query.Set(param, value)
 	}
-	if !s.sessionExpired() {
-		query.Set("_sid", s.sid)
-	}
 	reqUrl.RawQuery = query.Encode()
 	return reqUrl
 }
@@ -90,6 +87,7 @@ func (s *SynologySession) httpRequest(method string, endpoint string, params map
 	if err != nil {
 		return nil, HttpError(err.Error())
 	}
+
 	return res, nil
 }
 

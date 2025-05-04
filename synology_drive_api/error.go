@@ -73,6 +73,8 @@ const SYNOLOGY_LOGIN_ERROR_CANNOT_CHANGE_EXPIRED_PASSWORD = 408
 const SYNOLOGY_LOGIN_ERROR_PASSWORD_EXPIRED = 409
 const SYNOLOGY_LOGIN_ERROR_PASSWORD_MUST_BE_CHANGED = 410
 
+const SYNOLOGY_GET_ERROR_AT_DESTINATION = 1002
+
 // Error types for Synology API interactions
 
 // InvalidUrlError represents an error for invalid URL format
