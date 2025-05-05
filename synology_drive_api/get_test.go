@@ -3,6 +3,7 @@ package synology_drive_api
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,15 +14,15 @@ func TestGet(t *testing.T) {
 	// Test fails since the session is not logged in
 	_, err = s.Get("882614125167948399")
 	require.NotNil(t, err)
-	t.Log("Error:", err)
 
 	// Test succeeds after logging in
 	err = s.Login()
 	require.Nil(t, err)
 	resp, err := s.Get("882614125167948399")
 	require.Nil(t, err)
+	assert.NotEmpty(t, resp.raw)
 
-	t.Log("Response:", string(resp.raw))
+	//t.Log("Response:", string(resp.raw))
 	/* Sample Response:
 	{
 		"data": {

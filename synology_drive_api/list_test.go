@@ -15,12 +15,12 @@ func TestList(t *testing.T) {
 	resp, err := s.List(MyDrive)
 	require.Nil(t, err)
 
+	// t.Log("Response:", string(resp.raw))
 	for _, item := range resp.Items {
 		assert.NotEmpty(t, item.FileID)
 		assert.NotEmpty(t, item.Name)
 		assert.NotEmpty(t, item.Path)
 	}
-	t.Log("Response:", string(resp.raw))
 	/* Sample Response:
 	{
 	  "data": {
