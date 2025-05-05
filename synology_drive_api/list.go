@@ -1,9 +1,7 @@
 package synology_drive_api
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"time"
 )
 
@@ -216,20 +214,14 @@ func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer httpResponse.Body.Close()
-
-	body, err := io.ReadAll(httpResponse.Body)
-	if err != nil {
-		return nil, HttpError(err.Error())
-	}
 
 	var jsonResponse jsonListResponseV2
-	if err := json.Unmarshal(body, &jsonResponse); err != nil {
-		return nil, SynologyError(err.Error())
+	body, err := s.processAPIResponse(httpResponse, &jsonResponse, "List folder")
+	if err != nil {
+		return nil, err
 	}
-	if !jsonResponse.Success {
-		return nil, SynologyError(fmt.Sprintf("List folder failed: [code=%d]", jsonResponse.Err.Code))
-	}
+
+	// バリデーションチェック
 	for i := range jsonResponse.Data.Items {
 		item := jsonResponse.Data.Items[i]
 		if !item.ContentType.isValid() {

@@ -1,9 +1,6 @@
 package synology_drive_api
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
 	"time"
 )
 
@@ -196,20 +193,11 @@ func (s *SynologySession) Get(fileID FileID) (*GetResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer httpResponse.Body.Close()
-
-	body, err := io.ReadAll(httpResponse.Body)
-	if err != nil {
-		return nil, HttpError(err.Error())
-	}
 
 	var jsonResponse jsonGetResponseV3
-	if err := json.Unmarshal(body, &jsonResponse); err != nil {
-		return nil, SynologyError(err.Error())
-	}
-	if !jsonResponse.Success {
-		jsonErr := jsonResponse.Err
-		return nil, SynologyError(fmt.Sprintf("Get failed: %s [code=%d, line=%d]", jsonErr.Errors.Message, jsonErr.Code, jsonErr.Errors.Line))
+	body, err := s.processAPIResponse(httpResponse, &jsonResponse, "Get")
+	if err != nil {
+		return nil, err
 	}
 
 	resp := jsonResponse.Data.toResponse()

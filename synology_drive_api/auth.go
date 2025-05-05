@@ -1,11 +1,5 @@
 package synology_drive_api
 
-import (
-	"encoding/json"
-	"fmt"
-	"io"
-)
-
 // Synology Session name constant for API calls (private to this package)
 const synologySessionName = "SynologyDrive"
 
@@ -48,19 +42,12 @@ func (s *SynologySession) Login() error {
 		return err
 	}
 
-	body, err := io.ReadAll(rawResp.Body)
-	if err != nil {
-		return HttpError(err.Error())
-	}
-	defer rawResp.Body.Close()
-
 	var resp loginResponseV3
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return SynologyError(err.Error())
+	_, err = s.processAPIResponse(rawResp, &resp, "Login")
+	if err != nil {
+		return err
 	}
-	if !resp.Success {
-		return SynologyError(fmt.Sprintf("Login failed: [code=%d]", resp.Err.Code))
-	}
+
 	sid := resp.Data.SID
 	if sid == "" {
 		return SynologyError("Invalid or missing 'sid' field in response")
@@ -89,19 +76,12 @@ func (s *SynologySession) Logout() error {
 		return err
 	}
 
-	body, err := io.ReadAll(rawResp.Body)
-	if err != nil {
-		return HttpError(err.Error())
-	}
-	defer rawResp.Body.Close()
-
 	var resp logoutResponseV3
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return SynologyError(err.Error())
+	_, err = s.processAPIResponse(rawResp, &resp, "Logout")
+	if err != nil {
+		return err
 	}
-	if !resp.Success {
-		return SynologyError(fmt.Sprintf("Logout failed: [code=%d]", resp.Err.Code))
-	}
+
 	s.sid = ""
 	return nil
 }
