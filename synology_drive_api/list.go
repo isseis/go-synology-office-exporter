@@ -56,11 +56,42 @@ type jsonListResponseItemV2 struct {
 	WatermarkVersion int64            `json:"watermark_version"`
 }
 
+func (item *jsonListResponseItemV2) validate() error {
+	if !item.ContentType.isValid() {
+		return SynologyError(fmt.Sprintf("Invalid content type: %s", item.ContentType))
+	}
+	if !item.Type.isValid() {
+		return SynologyError(fmt.Sprintf("Invalid type: %s", item.Type))
+	}
+	for j := range item.SharedWith {
+		sharedWith := item.SharedWith[j]
+		if !sharedWith.Role.isValid() {
+			return SynologyError(fmt.Sprintf("Invalid role: %s", sharedWith.Role))
+		}
+		if !sharedWith.Type.isValid() {
+			return SynologyError(fmt.Sprintf("Invalid type: %s", sharedWith.Type))
+		}
+	}
+	return nil
+}
+
 // jsonListResponseDataV2 represents the data section of a list response
 // containing items and total count
 type jsonListResponseDataV2 struct {
 	Items []jsonListResponseItemV2 `json:"items"`
 	Total int64                    `json:"total"`
+}
+
+func (d *jsonListResponseDataV2) validate() error {
+	for i := range d.Items {
+		if err := d.Items[i].validate(); err != nil {
+			return err
+		}
+	}
+	if d.Total < 0 {
+		return SynologyError(fmt.Sprintf("Invalid total count: %d", d.Total))
+	}
+	return nil
 }
 
 // jsonListResponseV2 represents the complete response from listing files or folders
@@ -221,24 +252,8 @@ func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 		return nil, err
 	}
 
-	// バリデーションチェック
-	for i := range jsonResponse.Data.Items {
-		item := jsonResponse.Data.Items[i]
-		if !item.ContentType.isValid() {
-			return nil, SynologyError(fmt.Sprintf("Invalid content type: %s", item.ContentType))
-		}
-		if !item.Type.isValid() {
-			return nil, SynologyError(fmt.Sprintf("Invalid type: %s", item.Type))
-		}
-		for j := range item.SharedWith {
-			sharedWith := item.SharedWith[j]
-			if !sharedWith.Role.isValid() {
-				return nil, SynologyError(fmt.Sprintf("Invalid role: %s", sharedWith.Role))
-			}
-			if !sharedWith.Type.isValid() {
-				return nil, SynologyError(fmt.Sprintf("Invalid type: %s", sharedWith.Type))
-			}
-		}
+	if err := jsonResponse.Data.validate(); err != nil {
+		return nil, err
 	}
 
 	resp := ListResponse{
