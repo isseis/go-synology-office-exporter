@@ -1,16 +1,35 @@
 // package synology_drive_api provides functionality to interact with the Synology Drive API
 package synology_drive_api
 
+// SynologyResponse is an interface that provides common response functionality from the Synology API
+type SynologyResponse interface {
+	GetSuccess() bool
+	GetError() synologyError
+}
+
 // synologyAPIResponse represents the common structure of all Synology API responses
 type synologyAPIResponse struct {
-	Success bool `json:"success"`
-	Err     struct {
-		Code   int `json:"code"`
-		Errors struct {
-			Line    int    `json:"line"`
-			Message string `json:"message"`
-		}
-	} `json:"error"`
+	Success bool          `json:"success"`
+	Err     synologyError `json:"error"`
+}
+
+// GetSuccess returns the success status of the response
+func (r synologyAPIResponse) GetSuccess() bool {
+	return r.Success
+}
+
+// GetError returns the error information from the response
+func (r synologyAPIResponse) GetError() synologyError {
+	return r.Err
+}
+
+// synologyError represents the error structure in Synology API responses
+type synologyError struct {
+	Code   int `json:"code"`
+	Errors struct {
+		Line    int    `json:"line"`
+		Message string `json:"message"`
+	}
 }
 
 // SessionID represents the session identifier for a Synology session,
