@@ -1,6 +1,8 @@
 // package synology_drive_api provides functionality to interact with the Synology Drive API
 package synology_drive_api
 
+import "strings"
+
 // SynologyResponse is an interface that provides common response functionality from the Synology API
 type SynologyResponse interface {
 	GetSuccess() bool
@@ -221,4 +223,24 @@ type Owner struct {
 	Name        string
 	Nickname    string
 	UID         UserID
+}
+
+// officeExtensionMap defines the mapping between Synology Office file extensions
+// and their Microsoft Office equivalents
+var officeExtensionMap = map[string]string{
+	".odoc":    ".docx", // Synology Document to Word
+	".osheet":  ".xlsx", // Synology Spreadsheet to Excel
+	".oslides": ".pptx", // Synology Presentation to PowerPoint
+}
+
+// getExportFileName converts a Synology Office file name to the equivalent
+// Microsoft Office file name based on its extension.
+// Returns an empty string if the file format is not a supported Synology Office format.
+func getExportFileName(fileName string) string {
+	for synoExt, msExt := range officeExtensionMap {
+		if strings.HasSuffix(fileName, synoExt) {
+			return strings.TrimSuffix(fileName, synoExt) + msExt
+		}
+	}
+	return ""
 }
