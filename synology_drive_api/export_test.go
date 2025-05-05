@@ -28,5 +28,8 @@ func TestExport(t *testing.T) {
 	// Save the response to a file
 	err = os.WriteFile(res.Name, res.Content, 0644)
 	require.Nil(t, err, "Failed to save file")
+	defer func() {
+		os.Remove(res.Name)
+	}()
 	t.Log("Saved response to " + res.Name)
 }
