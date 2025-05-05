@@ -118,8 +118,8 @@ func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*h
 func (s *SynologySession) processAPIResponse(response *http.Response, v SynologyResponse, errorContext string) ([]byte, error) {
 
 	// Read the response body
-	body, err := io.ReadAll(response.Body)
 	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, HttpError(err.Error())
 	}
