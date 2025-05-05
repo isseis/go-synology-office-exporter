@@ -45,3 +45,28 @@ func TestContentTypeIsValid(t *testing.T) {
 		})
 	}
 }
+
+func TestGetExportFileName(t *testing.T) {
+	tests := []struct {
+		name     string
+		fileName string
+		want     string
+	}{
+		{"Document conversion", "test.odoc", "test.docx"},
+		{"Spreadsheet conversion", "test.osheet", "test.xlsx"},
+		{"Presentation conversion", "test.oslides", "test.pptx"},
+		{"Document with path", "/path/to/document.odoc", "/path/to/document.docx"},
+		{"File with multiple dots", "my.important.spreadsheet.osheet", "my.important.spreadsheet.xlsx"},
+		{"Unsupported extension", "test.txt", ""},
+		{"No extension", "test", ""},
+		{"Empty string", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getExportFileName(tt.fileName); got != tt.want {
+				t.Errorf("getExportFileName(%q) = %q, want %q", tt.fileName, got, tt.want)
+			}
+		})
+	}
+}
