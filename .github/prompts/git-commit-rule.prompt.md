@@ -7,7 +7,7 @@
 2. Run pre-commit hooks and fix any errors.
 3. Draft a commit message in English based on the staged changes.
 4. Ask for confirmation before committing with the proposed message using a "y/n" prompt, and proceed only with user approval.
-5. commit the chaneg and push it to the upstream.
+5. commit the change and push it to the upstream.
 
 ## Rules
 
