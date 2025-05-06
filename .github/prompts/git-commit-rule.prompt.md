@@ -3,7 +3,7 @@
   - stop (default)
   - add unstaged files and proceed
   - ignore unstaged files and proceed
-  and proceed only when the user approval.
+  and proceed only after receiving user approval.
 2. Run pre-commit hooks and fix any errors.
 3. Draft a commit message in English based on the staged changes.
 4. Ask for confirmation before committing with the proposed message using a "y/n" prompt, and proceed only with user approval.
