@@ -36,9 +36,7 @@ func (s *SynologySession) Login() error {
 		"session": synologySessionName,
 		"format":  "cookie",
 	}
-	rawResp, err := s.httpGet(endpoint, params, RequestOption{
-		ContentType: "application/json",
-	})
+	rawResp, err := s.httpGetJSON(endpoint, params)
 	if err != nil {
 		return err
 	}
