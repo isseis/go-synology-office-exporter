@@ -1,5 +1,11 @@
-- If there are unstaged files, display the list and ask the user if this is intentional.
+- If there are unstaged files, display the list and ask for confirmation using a "y/n" prompt if it's intentional, and proceed only with user approval.
 - Run pre-commit hooks and fix any errors.
 - When executing git diff commands, include the --no-pager option. (i.e. git --no-pager diff --staged)
-- Draft a commit message in English based on the staged changes.
+- Draft a commit message in English based on the staged changes. Commit message must begin with one of the follwing prefix.
+  - fix: Fix bugs.
+  - feat: Add new features or files.
+  - refactor: no feature changes, improving the code structure, naming, etc.
+  - docs: Add or update documentation.
+  - revert: Revert previous commit.
+  - chore: commit auto generated files, or small changes which don't fall into other categories.
 - Ask for confirmation before committing with the proposed message using a "y/n" prompt, and proceed only with user approval.
