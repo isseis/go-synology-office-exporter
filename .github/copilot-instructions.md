@@ -12,7 +12,7 @@
 ## Code Style and Structure
   - Add clear and concise comments for complex logic.
   - Do not write self-evident comments.
-  - Write comments in English.
+  - Write block and inline comments in English.
 
 ## Behavior
   - Act as an expert in Go language and network programming.
