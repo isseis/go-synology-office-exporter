@@ -241,7 +241,7 @@ func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 		"path":           string(fileID),
 	}
 
-	httpResponse, err := s.httpGet(endpoint, params)
+	httpResponse, err := s.httpGetJSON(endpoint, params)
 	if err != nil {
 		return nil, err
 	}

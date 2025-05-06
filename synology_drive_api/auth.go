@@ -36,8 +36,7 @@ func (s *SynologySession) Login() error {
 		"session": synologySessionName,
 		"format":  "cookie",
 	}
-
-	rawResp, err := s.httpGet(endpoint, params)
+	rawResp, err := s.httpGetJSON(endpoint, params)
 	if err != nil {
 		return err
 	}
@@ -71,7 +70,7 @@ func (s *SynologySession) Logout() error {
 		"session": synologySessionName,
 	}
 
-	rawResp, err := s.httpGet(endpoint, params)
+	rawResp, err := s.httpGetJSON(endpoint, params)
 	if err != nil {
 		return err
 	}
