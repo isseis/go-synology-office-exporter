@@ -9,6 +9,15 @@ import (
 	"net/url"
 )
 
+// RequestOption represents options for HTTP requests
+type RequestOption struct {
+	ContentType string // Content-Type header value, empty string means no Content-Type header will be set
+}
+
+var RequestOptionJSON = RequestOption{
+	ContentType: "application/json",
+}
+
 // SynologySession represents a session with a Synology NAS
 type SynologySession struct {
 	username    string      // Username for login on Synology NAS
@@ -75,17 +84,23 @@ func (s *SynologySession) buildUrl(endpoint string, params map[string]string) *u
 //   - method: The HTTP method to use (GET, POST, etc.)
 //   - endpoint: The API endpoint path
 //   - params: Query parameters to include in the URL
+//   - options: Request options including content type settings
 //
 // Returns:
 //   - *http.Response: The HTTP response from the API
 //   - error: An error of type HttpError if the request failed
-func (s *SynologySession) httpRequest(method string, endpoint string, params map[string]string) (*http.Response, error) {
+func (s *SynologySession) httpRequest(method string, endpoint string, params map[string]string, options RequestOption) (*http.Response, error) {
 	url := s.buildUrl(endpoint, params)
 	req, err := http.NewRequest(method, url.String(), nil)
 	if err != nil {
 		return nil, HttpError(err.Error())
 	}
-	req.Header.Set("Content-Type", "application/json")
+
+	// Set Content-Type header only if specified in options
+	if options.ContentType != "" {
+		req.Header.Set("Content-Type", options.ContentType)
+	}
+
 	res, err := s.http_client.Do(req)
 	if err != nil {
 		return nil, HttpError(err.Error())
@@ -98,12 +113,28 @@ func (s *SynologySession) httpRequest(method string, endpoint string, params map
 // Parameters:
 //   - endpoint: The API endpoint path
 //   - params: Query parameters to include in the URL
+//   - options: Request options including content type settings
 //
 // Returns:
 //   - *http.Response: The HTTP response from the API
 //   - error: An error if the request failed
-func (s *SynologySession) httpGet(endpoint string, params map[string]string) (*http.Response, error) {
-	return s.httpRequest(http.MethodGet, endpoint, params)
+func (s *SynologySession) httpGet(endpoint string, params map[string]string, options RequestOption) (*http.Response, error) {
+	return s.httpRequest(http.MethodGet, endpoint, params, options)
+}
+
+// httpGetJSON sends a GET request to the Synology NAS API with JSON content type
+// Parameters:
+//   - endpoint: The API endpoint path
+//   - params: Query parameters to include in the URL
+//
+// Returns:
+//   - *http.Response: The HTTP response from the API
+//   - error: An error if the request failed
+func (s *SynologySession) httpGetJSON(endpoint string, params map[string]string) (*http.Response, error) {
+	options := RequestOption{
+		ContentType: "application/json",
+	}
+	return s.httpRequest(http.MethodGet, endpoint, params, options)
 }
 
 // processAPIResponse processes the API response, unmarshals the JSON, and checks if it was successful

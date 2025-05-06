@@ -37,7 +37,9 @@ func (s *SynologySession) Export(fileID FileID) (*ExportResponse, error) {
 		"version": "1",
 		"path":    fmt.Sprintf("id:%s", ret.FileID),
 	}
-	httpResponse, err := s.httpGet(endpoint, params)
+
+	// Use httpGetWithOptions with empty ContentType for export operations
+	httpResponse, err := s.httpGet(endpoint, params, RequestOption{})
 	if err != nil {
 		return nil, err
 	}
