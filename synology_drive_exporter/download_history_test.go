@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -167,6 +168,13 @@ func TestLoad(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Len(t, history.Items, 1)
 		assert.Contains(t, history.Items, "/path/to/file.odoc")
+
+		// Verify that the values are loaded correctly
+		item, exists := history.Items["/path/to/file.odoc"]
+		assert.True(t, exists)
+		assert.Equal(t, "882614125167948399", string(item.FileID))
+		assert.Equal(t, "1234567890abcdef", string(item.Hash))
+		assert.Equal(t, time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC), item.DownloadTime)
 	})
 
 	// Test for non-existent file
