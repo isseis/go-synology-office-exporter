@@ -5,12 +5,17 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
+
+	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
 const HISTORY_VERSION = 2
 const HISTORY_MAGIC = "SYNOLOGY_OFFICE_EXPORTER"
 
-type DownloadHistory struct{}
+type DownloadHistory struct {
+	Items map[string]DownloadItem
+}
 
 type jsonHeader struct {
 	Version int    `json:"version"`
@@ -19,15 +24,21 @@ type jsonHeader struct {
 }
 
 type jsonDownloadItem struct {
-	Location     string `json:"location"`
-	FileID       string `json:"file_id"`
-	Hash         string `json:"hash"`
-	DownloadTime string `json:"download_time"`
+	Location     string        `json:"location"`
+	FileID       synd.FileID   `json:"file_id"`
+	Hash         synd.FileHash `json:"hash"`
+	DownloadTime string        `json:"download_time"`
 }
 
 type jsonDownloadHistory struct {
 	Header jsonHeader         `json:"header"`
 	Items  []jsonDownloadItem `json:"items"`
+}
+
+type DownloadItem struct {
+	FileID       synd.FileID
+	Hash         synd.FileHash
+	DownloadTime time.Time
 }
 
 func NewDownloadHistory() *DownloadHistory {
@@ -44,14 +55,7 @@ func (json *jsonHeader) validate() error {
 	return nil
 }
 
-func (json *jsonDownloadHistory) validate() error {
-	if err := json.Header.validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (d *DownloadHistory) Load(r io.Reader) error {
+func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 	content, err := io.ReadAll(r)
 	if err != nil {
 		return DownloadHistoryFileError(err.Error())
@@ -62,21 +66,34 @@ func (d *DownloadHistory) Load(r io.Reader) error {
 		return DownloadHistoryParseError(err.Error())
 	}
 
-	if err := history.validate(); err != nil {
+	if err := history.Header.validate(); err != nil {
 		return err
 	}
 
-	// TODO: Store the parsed history in the DownloadHistory struct
-	// This part depends on how you want to use the data in the DownloadHistory struct
+	d.Items = make(map[string]DownloadItem)
+	for _, item := range history.Items {
+		downloadTime, err := time.Parse(time.RFC3339, item.DownloadTime)
+		if err != nil {
+			return DownloadHistoryParseError(fmt.Sprintf("failed to parse download time: %s", err.Error()))
+		}
+		// Check if the location is already in the map
+		if _, exists := d.Items[item.Location]; exists {
+			return DownloadHistoryParseError(fmt.Sprintf("duplicate location: %s", item.Location))
+		}
+		d.Items[item.Location] = DownloadItem{
+			FileID:       item.FileID,
+			Hash:         item.Hash,
+			DownloadTime: downloadTime,
+		}
+	}
 	return nil
 }
 
-func (d *DownloadHistory) LoadFile(path string) error {
-	// Open the file
+func (d *DownloadHistory) Load(path string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return DownloadHistoryFileError(err.Error())
 	}
 	defer file.Close()
-	return d.Load(file)
+	return d.loadFromReader(file)
 }
