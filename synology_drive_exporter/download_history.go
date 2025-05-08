@@ -58,7 +58,7 @@ func (json *jsonHeader) validate() error {
 func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 	content, err := io.ReadAll(r)
 	if err != nil {
-		return DownloadHistoryFileError(err.Error())
+		return DownloadHistoryFileReadError(err.Error())
 	}
 
 	var history jsonDownloadHistory
@@ -89,11 +89,59 @@ func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 	return nil
 }
 
+// Load reads download history from a JSON file at the specified path.
+// It returns a DownloadHistoryFileError if the file cannot be opened
+// or a DownloadHistoryParseError if the file contains invalid data.
 func (d *DownloadHistory) Load(path string) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return DownloadHistoryFileError(err.Error())
+		return DownloadHistoryFileReadError(err.Error())
 	}
 	defer file.Close()
 	return d.loadFromReader(file)
+}
+
+func (d *DownloadHistory) saveToWriter(w io.Writer) error {
+	header := jsonHeader{
+		Version: HISTORY_VERSION,
+		Magic:   HISTORY_MAGIC,
+		Created: time.Now().Format(time.RFC3339),
+	}
+
+	items := make([]jsonDownloadItem, 0, len(d.Items))
+	for location, item := range d.Items {
+		items = append(items, jsonDownloadItem{
+			Location:     location,
+			FileID:       item.FileID,
+			Hash:         item.Hash,
+			DownloadTime: item.DownloadTime.Format(time.RFC3339),
+		})
+	}
+
+	history := jsonDownloadHistory{
+		Header: header,
+		Items:  items,
+	}
+
+	data, err := json.MarshalIndent(history, "", "  ")
+	if err != nil {
+		return DownloadHistoryFileWriteError(err.Error())
+	}
+
+	if _, err := w.Write(data); err != nil {
+		return DownloadHistoryFileWriteError(err.Error())
+	}
+	return nil
+
+}
+
+// Save writes the download history to a JSON file at the specified path.
+// It returns a DownloadHistoryFileError if the file cannot be created or written to.
+func (d *DownloadHistory) Save(path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return DownloadHistoryFileWriteError(err.Error())
+	}
+	defer file.Close()
+	return d.saveToWriter(file)
 }
