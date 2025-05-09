@@ -1,0 +1,334 @@
+package synology_drive_exporter
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestLoadFromReader(t *testing.T) {
+	history := NewDownloadHistory()
+	json := `{
+		"header": {
+			"version": 2,
+			"magic": "SYNOLOGY_OFFICE_EXPORTER",
+			"created": "2023-10-01T12:34:56Z"
+		},
+		"items": [
+			{
+				"location": "/path/to/file.odoc",
+				"file_id": "882614125167948399",
+				"hash": "1234567890abcdef",
+				"download_time": "2023-10-01T12:34:56Z"
+			}
+		]
+	}`
+	err := history.loadFromReader(strings.NewReader(json))
+	require.Nil(t, err)
+
+	item := history.Items["/path/to/file.odoc"]
+	require.NotNil(t, item)
+	assert.Equal(t, "882614125167948399", string(item.FileID))
+	assert.Equal(t, "1234567890abcdef", string(item.Hash))
+	assert.Equal(t, time.Date(2023, 10, 1, 12, 34, 56, 0, time.UTC), item.DownloadTime)
+
+	// Test for invalid JSON syntax
+	t.Run("Invalid JSON syntax", func(t *testing.T) {
+		invalidJSON := `{
+			"header": {
+				"version": 2,
+				"magic": "SYNOLOGY_OFFICE_EXPORTER",
+				"created": "2023-10-01T12:00:00Z"
+			},
+			"items": [
+				{
+					"location": "/path/to/file.odoc",
+					"file_id": "882614125167948399",
+					"hash": "1234567890abcdef",
+					"download_time": "2023-10-01T12:00:00Z"
+				}
+			]
+		` // Missing closing bracket
+		err := history.loadFromReader(strings.NewReader(invalidJSON))
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "failed to parse download history JSON")
+	})
+
+	// Test for invalid version
+	t.Run("Invalid version", func(t *testing.T) {
+		invalidVersionJSON := `{
+			"header": {
+				"version": 1,
+				"magic": "SYNOLOGY_OFFICE_EXPORTER",
+				"created": "2023-10-01T12:00:00Z"
+			},
+			"items": []
+		}`
+		err := history.loadFromReader(strings.NewReader(invalidVersionJSON))
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "failed to parse download history JSON")
+		assert.Contains(t, err.Error(), "unsupported version: 1")
+	})
+
+	// Test for invalid magic string
+	t.Run("Invalid magic string", func(t *testing.T) {
+		invalidMagicJSON := `{
+			"header": {
+				"version": 2,
+				"magic": "WRONG_MAGIC_STRING",
+				"created": "2023-10-01T12:00:00Z"
+			},
+			"items": []
+		}`
+		err := history.loadFromReader(strings.NewReader(invalidMagicJSON))
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "failed to parse download history JSON")
+		assert.Contains(t, err.Error(), "invalid magic: WRONG_MAGIC_STRING")
+	})
+
+	// Test for invalid date format
+	t.Run("Invalid date format", func(t *testing.T) {
+		invalidDateJSON := `{
+			"header": {
+				"version": 2,
+				"magic": "SYNOLOGY_OFFICE_EXPORTER",
+				"created": "2023-10-01T12:00:00Z"
+			},
+			"items": [
+				{
+					"location": "/path/to/file.odoc",
+					"file_id": "882614125167948399",
+					"hash": "1234567890abcdef",
+					"download_time": "2023-10-01 12:00:00"
+				}
+			]
+		}`
+		err := history.loadFromReader(strings.NewReader(invalidDateJSON))
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "failed to parse download history JSON")
+		assert.Contains(t, err.Error(), "failed to parse download time")
+	})
+
+	// Test for duplicate locations
+	t.Run("Duplicate locations", func(t *testing.T) {
+		duplicateLocationJSON := `{
+			"header": {
+				"version": 2,
+				"magic": "SYNOLOGY_OFFICE_EXPORTER",
+				"created": "2023-10-01T12:00:00Z"
+			},
+			"items": [
+				{
+					"location": "/path/to/file.odoc",
+					"file_id": "882614125167948399",
+					"hash": "1234567890abcdef",
+					"download_time": "2023-10-01T12:00:00Z"
+				},
+				{
+					"location": "/path/to/file.odoc",
+					"file_id": "882614125167948400",
+					"hash": "1234567890abcdef",
+					"download_time": "2023-10-01T13:00:00Z"
+				}
+			]
+		}`
+		err := history.loadFromReader(strings.NewReader(duplicateLocationJSON))
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "failed to parse download history JSON")
+		assert.Contains(t, err.Error(), "duplicate location")
+	})
+}
+
+func TestLoad(t *testing.T) {
+	// Create a JSON file for testing in a temporary directory
+	tempDir := t.TempDir()
+	jsonPath := filepath.Join(tempDir, "history.json")
+
+	validJSON := `{
+		"header": {
+			"version": 2,
+			"magic": "SYNOLOGY_OFFICE_EXPORTER",
+			"created": "2023-10-01T15:27:38Z"
+		},
+		"items": [
+			{
+				"location": "/path/to/file.odoc",
+				"file_id": "882614125167948399",
+				"hash": "1234567890abcdef",
+				"download_time": "2023-10-01T15:27:38Z"
+			}
+		]
+	}`
+
+	err := os.WriteFile(jsonPath, []byte(validJSON), 0644)
+	assert.Nil(t, err)
+
+	// Test for valid file loading
+	t.Run("Valid file", func(t *testing.T) {
+		history := NewDownloadHistory()
+		err := history.Load(jsonPath)
+		assert.Nil(t, err)
+		assert.Len(t, history.Items, 1)
+		assert.Contains(t, history.Items, "/path/to/file.odoc")
+
+		// Verify that the values are loaded correctly
+		item, exists := history.Items["/path/to/file.odoc"]
+		assert.True(t, exists)
+		assert.Equal(t, "882614125167948399", string(item.FileID))
+		assert.Equal(t, "1234567890abcdef", string(item.Hash))
+		// Check non-zero minutes and seconds in timestamp
+		assert.Equal(t, time.Date(2023, 10, 1, 15, 27, 38, 0, time.UTC), item.DownloadTime)
+		assert.Equal(t, 27, item.DownloadTime.Minute())
+		assert.Equal(t, 38, item.DownloadTime.Second())
+	})
+
+	// Test for non-existent file
+	t.Run("Non-existent file", func(t *testing.T) {
+		history := NewDownloadHistory()
+		err := history.Load(filepath.Join(tempDir, "non_existent.json"))
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "failed to read download history file")
+	})
+}
+
+// TestSaveToWriter verifies the functionality of saveToWriter method
+// by testing both successful and error scenarios.
+func TestSaveToWriter(t *testing.T) {
+	// Create a history instance with test data for testing
+	history := NewDownloadHistory()
+	history.Items = map[string]DownloadItem{
+		"/path/to/file1.odoc": {
+			FileID:       "882614125167948399",
+			Hash:         "1234567890abcdef",
+			DownloadTime: time.Date(2023, 10, 1, 12, 45, 23, 0, time.UTC),
+		},
+		"/path/to/file2.odoc": {
+			FileID:       "882614125167948400",
+			Hash:         "abcdef1234567890",
+			DownloadTime: time.Date(2023, 10, 2, 8, 17, 39, 0, time.UTC),
+		},
+	}
+
+	// Test successful case
+	t.Run("Successful write", func(t *testing.T) {
+		var buf strings.Builder
+		err := history.saveToWriter(&buf)
+		assert.Nil(t, err)
+
+		// Verify the output contains expected data
+		output := buf.String()
+		assert.Contains(t, output, HISTORY_MAGIC)
+		assert.Contains(t, output, "\"version\": 2")
+		assert.Contains(t, output, "/path/to/file1.odoc")
+		assert.Contains(t, output, "/path/to/file2.odoc")
+		assert.Contains(t, output, "882614125167948399")
+		assert.Contains(t, output, "882614125167948400")
+		assert.Contains(t, output, "1234567890abcdef")
+		assert.Contains(t, output, "abcdef1234567890")
+		assert.Contains(t, output, "2023-10-01T12:45:23Z")
+		assert.Contains(t, output, "2023-10-02T08:17:39Z")
+
+		// Parse the saved data to ensure it's valid
+		loadedHistory := NewDownloadHistory()
+		err = loadedHistory.loadFromReader(strings.NewReader(output))
+		assert.Nil(t, err)
+		assert.Len(t, loadedHistory.Items, 2)
+
+		// Verify timestamps with non-zero minutes and seconds are preserved
+		file1, exists := loadedHistory.Items["/path/to/file1.odoc"]
+		assert.True(t, exists)
+		assert.Equal(t, 45, file1.DownloadTime.Minute())
+		assert.Equal(t, 23, file1.DownloadTime.Second())
+
+		file2, exists := loadedHistory.Items["/path/to/file2.odoc"]
+		assert.True(t, exists)
+		assert.Equal(t, 17, file2.DownloadTime.Minute())
+		assert.Equal(t, 39, file2.DownloadTime.Second())
+	})
+
+	// Test error writing to the writer
+	t.Run("Writer error", func(t *testing.T) {
+		// Create a mock writer that returns an error on Write
+		errorWriter := &mockErrorWriter{}
+		err := history.saveToWriter(errorWriter)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "failed to write download history file")
+	})
+}
+
+// TestSave verifies the functionality of Save method
+// by testing both successful and error scenarios.
+func TestSave(t *testing.T) {
+	// Create a history instance with test data
+	history := NewDownloadHistory()
+	history.Items = map[string]DownloadItem{
+		"/path/to/file.odoc": {
+			FileID:       "882614125167948399",
+			Hash:         "1234567890abcdef",
+			DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
+		},
+	}
+
+	// Test successful case
+	t.Run("Successful save", func(t *testing.T) {
+		tempDir := t.TempDir()
+		jsonPath := filepath.Join(tempDir, "history.json")
+
+		err := history.Save(jsonPath)
+		assert.Nil(t, err)
+
+		// Verify the file was created
+		_, err = os.Stat(jsonPath)
+		assert.Nil(t, err)
+
+		// Read the file and verify its content
+		data, err := os.ReadFile(jsonPath)
+		assert.Nil(t, err)
+		assert.Contains(t, string(data), HISTORY_MAGIC)
+		assert.Contains(t, string(data), "/path/to/file.odoc")
+
+		// Try loading the file to ensure it's valid
+		loadedHistory := NewDownloadHistory()
+		err = loadedHistory.Load(jsonPath)
+		assert.Nil(t, err)
+		assert.Len(t, loadedHistory.Items, 1)
+	})
+
+	// Test case when file creation fails
+	t.Run("File creation error", func(t *testing.T) {
+		// Try to save to a directory that doesn't exist
+		err := history.Save("/non-existent-dir/history.json")
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "failed to write download history file")
+	})
+
+	// Test case when directory is not writable
+	t.Run("Permission error", func(t *testing.T) {
+		if os.Getuid() == 0 {
+			t.Skip("Skipping permission test when running as root")
+		}
+
+		tempDir := t.TempDir()
+		readOnlyDir := filepath.Join(tempDir, "readonly")
+		err := os.Mkdir(readOnlyDir, 0500) // read-only directory
+		assert.Nil(t, err)
+
+		jsonPath := filepath.Join(readOnlyDir, "history.json")
+		err = history.Save(jsonPath)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "failed to write download history file")
+	})
+}
+
+// mockErrorWriter is a mock io.Writer that always returns an error
+type mockErrorWriter struct{}
+
+func (m *mockErrorWriter) Write(p []byte) (n int, err error) {
+	return 0, fmt.Errorf("mock write error")
+}

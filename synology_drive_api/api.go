@@ -48,6 +48,9 @@ type UserID int
 // FileID represents an identifier of a file on SynologyDrive
 type FileID string
 
+// FileHash represents the hash of a file on SynologyDrive
+type FileHash string
+
 // MyDrive represents the root folder identifier in Synology Drive
 const MyDrive = FileID("/mydrive/")
 
