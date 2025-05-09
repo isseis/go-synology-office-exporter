@@ -64,7 +64,7 @@ func TestGetExportFileName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getExportFileName(tt.fileName); got != tt.want {
+			if got := GetExportFileName(tt.fileName); got != tt.want {
 				t.Errorf("getExportFileName(%q) = %q, want %q", tt.fileName, got, tt.want)
 			}
 		})

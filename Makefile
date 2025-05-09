@@ -1,0 +1,24 @@
+# Define command paths
+RM := /bin/rm -rf
+GO_BUILD := go build
+GO_TEST := go test
+
+# Declare phony targets that don't produce files
+.PHONY: build test clean run
+
+# Build the export command
+build:
+	$(GO_BUILD) -o bin/export cmd/export/main.go
+
+# Run tests, specifically library unit tests
+test:
+	$(GO_TEST) ./synology_drive_api/...
+	$(GO_TEST) ./synology_drive_exporter/...
+
+# Clean up automatically generated files
+clean:
+	$(RM) bin/export
+
+# Build and run the export command
+run: build
+	./bin/export

@@ -236,10 +236,10 @@ var officeExtensionMap = map[string]string{
 	".oslides": ".pptx", // Synology Presentation to PowerPoint
 }
 
-// getExportFileName converts a Synology Office file name to the equivalent
+// GetExportFileName converts a Synology Office file name to the equivalent
 // Microsoft Office file name based on its extension.
 // Returns an empty string if the file format is not a supported Synology Office format.
-func getExportFileName(fileName string) string {
+func GetExportFileName(fileName string) string {
 	for synoExt, msExt := range officeExtensionMap {
 		if strings.HasSuffix(fileName, synoExt) {
 			return strings.TrimSuffix(fileName, synoExt) + msExt
