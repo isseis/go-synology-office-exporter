@@ -13,7 +13,7 @@ import (
 )
 
 func TestLoadFromReader(t *testing.T) {
-	history := NewDownloadHistory()
+	history := NewDownloadHistory("dummy.json")
 	json := `{
 		"header": {
 			"version": 2,
@@ -171,8 +171,8 @@ func TestLoad(t *testing.T) {
 
 	// Test for valid file loading
 	t.Run("Valid file", func(t *testing.T) {
-		history := NewDownloadHistory()
-		err := history.Load(jsonPath)
+		history := NewDownloadHistory(jsonPath)
+		err := history.Load()
 		assert.Nil(t, err)
 		assert.Len(t, history.Items, 1)
 		assert.Contains(t, history.Items, "/path/to/file.odoc")
@@ -190,8 +190,9 @@ func TestLoad(t *testing.T) {
 
 	// Test for non-existent file
 	t.Run("Non-existent file", func(t *testing.T) {
-		history := NewDownloadHistory()
-		err := history.Load(filepath.Join(tempDir, "non_existent.json"))
+		nonExistentPath := filepath.Join(tempDir, "non_existent.json")
+		history := NewDownloadHistory(nonExistentPath)
+		err := history.Load()
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "failed to read download history file")
 	})
@@ -201,7 +202,7 @@ func TestLoad(t *testing.T) {
 // by testing both successful and error scenarios.
 func TestSaveToWriter(t *testing.T) {
 	// Create a history instance with test data for testing
-	history := NewDownloadHistory()
+	history := NewDownloadHistory("dummy.json")
 	history.Items = map[string]DownloadItem{
 		"/path/to/file1.odoc": {
 			FileID:       "882614125167948399",
@@ -235,7 +236,7 @@ func TestSaveToWriter(t *testing.T) {
 		assert.Contains(t, output, "2023-10-02T08:17:39Z")
 
 		// Parse the saved data to ensure it's valid
-		loadedHistory := NewDownloadHistory()
+		loadedHistory := NewDownloadHistory("dummy.json")
 		err = loadedHistory.loadFromReader(strings.NewReader(output))
 		assert.Nil(t, err)
 		assert.Len(t, loadedHistory.Items, 2)
@@ -265,22 +266,22 @@ func TestSaveToWriter(t *testing.T) {
 // TestSave verifies the functionality of Save method
 // by testing both successful and error scenarios.
 func TestSave(t *testing.T) {
-	// Create a history instance with test data
-	history := NewDownloadHistory()
-	history.Items = map[string]DownloadItem{
-		"/path/to/file.odoc": {
-			FileID:       "882614125167948399",
-			Hash:         "1234567890abcdef",
-			DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
-		},
-	}
-
 	// Test successful case
 	t.Run("Successful save", func(t *testing.T) {
 		tempDir := t.TempDir()
 		jsonPath := filepath.Join(tempDir, "history.json")
 
-		err := history.Save(jsonPath)
+		// Create a history instance with test data
+		history := NewDownloadHistory(jsonPath)
+		history.Items = map[string]DownloadItem{
+			"/path/to/file.odoc": {
+				FileID:       "882614125167948399",
+				Hash:         "1234567890abcdef",
+				DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
+			},
+		}
+
+		err := history.Save()
 		assert.Nil(t, err)
 
 		// Verify the file was created
@@ -294,8 +295,8 @@ func TestSave(t *testing.T) {
 		assert.Contains(t, string(data), "/path/to/file.odoc")
 
 		// Try loading the file to ensure it's valid
-		loadedHistory := NewDownloadHistory()
-		err = loadedHistory.Load(jsonPath)
+		loadedHistory := NewDownloadHistory(jsonPath)
+		err = loadedHistory.Load()
 		assert.Nil(t, err)
 		assert.Len(t, loadedHistory.Items, 1)
 	})
@@ -303,7 +304,15 @@ func TestSave(t *testing.T) {
 	// Test case when file creation fails
 	t.Run("File creation error", func(t *testing.T) {
 		// Try to save to a directory that doesn't exist
-		err := history.Save("/non-existent-dir/history.json")
+		history := NewDownloadHistory("/non-existent-dir/history.json")
+		history.Items = map[string]DownloadItem{
+			"/path/to/file.odoc": {
+				FileID:       "882614125167948399",
+				Hash:         "1234567890abcdef",
+				DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
+			},
+		}
+		err := history.Save()
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "failed to write download history file")
 	})
@@ -320,7 +329,15 @@ func TestSave(t *testing.T) {
 		assert.Nil(t, err)
 
 		jsonPath := filepath.Join(readOnlyDir, "history.json")
-		err = history.Save(jsonPath)
+		history := NewDownloadHistory(jsonPath)
+		history.Items = map[string]DownloadItem{
+			"/path/to/file.odoc": {
+				FileID:       "882614125167948399",
+				Hash:         "1234567890abcdef",
+				DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
+			},
+		}
+		err = history.Save()
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "failed to write download history file")
 	})

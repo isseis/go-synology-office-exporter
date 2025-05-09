@@ -14,7 +14,8 @@ const HISTORY_VERSION = 2
 const HISTORY_MAGIC = "SYNOLOGY_OFFICE_EXPORTER"
 
 type DownloadHistory struct {
-	Items map[string]DownloadItem
+	Items    map[string]DownloadItem
+	filename string
 }
 
 type jsonHeader struct {
@@ -41,10 +42,16 @@ type DownloadItem struct {
 	DownloadTime time.Time
 }
 
-func NewDownloadHistory() *DownloadHistory {
-	return &DownloadHistory{
-		Items: make(map[string]DownloadItem),
+/**
+ * NewDownloadHistory creates a new DownloadHistory instance with the specified filename
+ * for later use with Save and Load methods.
+ */
+func NewDownloadHistory(filename string) *DownloadHistory {
+	history := &DownloadHistory{
+		Items:    make(map[string]DownloadItem),
+		filename: filename,
 	}
+	return history
 }
 
 func (json *jsonHeader) validate() error {
@@ -90,11 +97,11 @@ func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 	return nil
 }
 
-// Load reads download history from a JSON file at the specified path.
+// Load reads download history from the JSON file specified during initialization.
 // It returns a DownloadHistoryFileError if the file cannot be opened
 // or a DownloadHistoryParseError if the file contains invalid data.
-func (d *DownloadHistory) Load(path string) error {
-	file, err := os.Open(path)
+func (d *DownloadHistory) Load() error {
+	file, err := os.Open(d.filename)
 	if err != nil {
 		return DownloadHistoryFileReadError(err.Error())
 	}
@@ -136,10 +143,10 @@ func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 
 }
 
-// Save writes the download history to a JSON file at the specified path.
+// Save writes the download history to the JSON file specified during initialization.
 // It returns a DownloadHistoryFileError if the file cannot be created or written to.
-func (d *DownloadHistory) Save(path string) error {
-	file, err := os.Create(path)
+func (d *DownloadHistory) Save() error {
+	file, err := os.Create(d.filename)
 	if err != nil {
 		return DownloadHistoryFileWriteError(err.Error())
 	}
