@@ -43,10 +43,10 @@ type DownloadItem struct {
 }
 
 /**
- * NewDownloadHistory creates a new DownloadHistory instance with the specified filename
+ * NewDownloadHistory creates a new DownloadHistory instance with the specified path
  * for later use with Save and Load methods.
  *
- * It validates that the filename is not empty and could potentially be a valid file path.
+ * It validates that the path is not empty and could potentially be a valid file path.
  * Returns an error if the filename is invalid.
  */
 func NewDownloadHistory(path string) (*DownloadHistory, error) {
