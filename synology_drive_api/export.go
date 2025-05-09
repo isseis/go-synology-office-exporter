@@ -25,7 +25,7 @@ func (s *SynologySession) Export(fileID FileID) (*ExportResponse, error) {
 		return nil, SynologyError(err.Error())
 	}
 
-	exportName := getExportFileName(ret.Name)
+	exportName := GetExportFileName(ret.Name)
 	if exportName == "" {
 		return nil, SynologyError(fmt.Sprintf("Unsupported file type: [name=%s]", ret.Name))
 	}

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	synd "github.com/isseis/go-synology-office-exporter/synology_drive_exporter"
 )
 
 // Version contains the current version of the application
@@ -14,8 +16,18 @@ func main() {
 
 	// Print version information
 	fmt.Printf("Synology Office Exporter v%s\n", Version)
+	exporter, err := synd.NewExporter(
+		os.Getenv("SYNOLOGY_NAS_USER"),
+		os.Getenv("SYNOLOGY_NAS_PASS"),
+		os.Getenv("SYNOLOGY_NAS_URL"),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create exporter: %v", err)
+	}
 
-	// TODO: Implement exporter functionality
+	if err := exporter.ExportMyDrive(); err != nil {
+		log.Fatalf("Export failed: %v", err)
+	}
 
 	log.Println("Export complete")
 	os.Exit(0)
