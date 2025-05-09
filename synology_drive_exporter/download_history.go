@@ -42,7 +42,9 @@ type DownloadItem struct {
 }
 
 func NewDownloadHistory() *DownloadHistory {
-	return &DownloadHistory{}
+	return &DownloadHistory{
+		Items: make(map[string]DownloadItem),
+	}
 }
 
 func (json *jsonHeader) validate() error {
@@ -70,7 +72,6 @@ func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 		return err
 	}
 
-	d.Items = make(map[string]DownloadItem)
 	for _, item := range history.Items {
 		downloadTime, err := time.Parse(time.RFC3339, item.DownloadTime)
 		if err != nil {
