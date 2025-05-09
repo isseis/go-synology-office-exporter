@@ -9,15 +9,15 @@ import (
 
 func TestExport(t *testing.T) {
 	s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Test fails since the session is not logged in
 	_, err = s.Export("882614125167948399")
-	require.NotNil(t, err)
+	require.Error(t, err)
 
 	// Test should succeed after logging in, but we haven't implemented the Export function yet
 	err = s.Login()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	res, err := s.Export("882614125167948399")
 	// Skip the test if there was an error
 	if err != nil {
@@ -27,7 +27,7 @@ func TestExport(t *testing.T) {
 	t.Log("Response [Name]:", string(res.Name))
 	// Save the response to a file
 	err = os.WriteFile(res.Name, res.Content, 0644)
-	require.Nil(t, err, "Failed to save file")
+	require.NoError(t, err, "Failed to save file")
 	defer func() {
 		os.Remove(res.Name)
 	}()

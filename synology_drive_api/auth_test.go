@@ -10,20 +10,20 @@ import (
 func TestAuth(t *testing.T) {
 	t.Run("Login", func(t *testing.T) {
 		s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
-		require.Nil(t, err)
+		require.NoError(t, err)
 		err = s.Login()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.False(t, s.sessionExpired())
 		assert.NotEmpty(t, s.sid)
 	})
 
 	t.Run("Logout", func(t *testing.T) {
 		s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
-		require.Nil(t, err)
+		require.NoError(t, err)
 		err = s.Login()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		err = s.Logout()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.True(t, s.sessionExpired())
 		assert.Empty(t, s.sid)
 	})

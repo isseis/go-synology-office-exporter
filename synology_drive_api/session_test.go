@@ -18,7 +18,7 @@ func TestHttpGet(t *testing.T) {
 		"session": "SynologyDrive",
 		"format":  "cookie",
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Verify the structure of the URL but exclude the password
 	expectedUrl := getNasUrl() + "/webapi/auth.cgi"
