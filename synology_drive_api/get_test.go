@@ -9,17 +9,17 @@ import (
 
 func TestGet(t *testing.T) {
 	s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Test fails since the session is not logged in
 	_, err = s.Get("882614125167948399")
-	require.NotNil(t, err)
+	require.Error(t, err)
 
 	// Test succeeds after logging in
 	err = s.Login()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	resp, err := s.Get("882614125167948399")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, resp.raw)
 
 	//t.Log("Response:", string(resp.raw))

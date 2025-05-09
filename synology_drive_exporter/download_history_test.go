@@ -76,7 +76,7 @@ func TestLoadFromReader(t *testing.T) {
 		]
 	}`
 	err = history.loadFromReader(strings.NewReader(json))
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	item := history.Items["/path/to/file.odoc"]
 	require.NotNil(t, item)

@@ -9,11 +9,11 @@ import (
 
 func TestList(t *testing.T) {
 	s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	err = s.Login()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	resp, err := s.List(MyDrive)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// t.Log("Response:", string(resp.raw))
 	for _, item := range resp.Items {
