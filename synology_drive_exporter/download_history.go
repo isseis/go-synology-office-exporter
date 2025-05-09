@@ -14,8 +14,8 @@ const HISTORY_VERSION = 2
 const HISTORY_MAGIC = "SYNOLOGY_OFFICE_EXPORTER"
 
 type DownloadHistory struct {
-	Items    map[string]DownloadItem
-	filename string
+	Items map[string]DownloadItem
+	path  string
 }
 
 type jsonHeader struct {
@@ -45,21 +45,34 @@ type DownloadItem struct {
 /**
  * NewDownloadHistory creates a new DownloadHistory instance with the specified filename
  * for later use with Save and Load methods.
+ *
+ * It validates that the filename is not empty and could potentially be a valid file path.
+ * Returns an error if the filename is invalid.
  */
-func NewDownloadHistory(filename string) *DownloadHistory {
-	history := &DownloadHistory{
-		Items:    make(map[string]DownloadItem),
-		filename: filename,
+func NewDownloadHistory(path string) (*DownloadHistory, error) {
+	// Basic validity check
+	if path == "" {
+		return nil, DownloadHistoryFileError("filename cannot be empty")
 	}
-	return history
+
+	// Check for obviously invalid filenames
+	if path == "." || path == ".." || path[len(path)-1] == '/' {
+		return nil, DownloadHistoryFileError(fmt.Sprintf("invalid filename: %s", path))
+	}
+
+	history := &DownloadHistory{
+		Items: make(map[string]DownloadItem),
+		path:  path,
+	}
+	return history, nil
 }
 
-func (json *jsonHeader) validate() error {
-	if json.Version != HISTORY_VERSION {
-		return DownloadHistoryParseError(fmt.Sprintf("unsupported version: %d", json.Version))
+func (hdr *jsonHeader) validate() error {
+	if hdr.Version != HISTORY_VERSION {
+		return DownloadHistoryParseError(fmt.Sprintf("unsupported version: %d", hdr.Version))
 	}
-	if json.Magic != HISTORY_MAGIC {
-		return DownloadHistoryParseError(fmt.Sprintf("invalid magic: %s", json.Magic))
+	if hdr.Magic != HISTORY_MAGIC {
+		return DownloadHistoryParseError(fmt.Sprintf("invalid magic: %s", hdr.Magic))
 	}
 	return nil
 }
@@ -101,7 +114,7 @@ func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 // It returns a DownloadHistoryFileError if the file cannot be opened
 // or a DownloadHistoryParseError if the file contains invalid data.
 func (d *DownloadHistory) Load() error {
-	file, err := os.Open(d.filename)
+	file, err := os.Open(d.path)
 	if err != nil {
 		return DownloadHistoryFileReadError(err.Error())
 	}
@@ -146,7 +159,7 @@ func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 // Save writes the download history to the JSON file specified during initialization.
 // It returns a DownloadHistoryFileError if the file cannot be created or written to.
 func (d *DownloadHistory) Save() error {
-	file, err := os.Create(d.filename)
+	file, err := os.Create(d.path)
 	if err != nil {
 		return DownloadHistoryFileWriteError(err.Error())
 	}
