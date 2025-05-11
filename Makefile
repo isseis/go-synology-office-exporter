@@ -1,5 +1,6 @@
 # Define command paths
 RM := /bin/rm -rf
+MKDIR := /bin/mkdir -p
 GO_BUILD := go build
 GO_TEST := go test
 
@@ -20,8 +21,9 @@ test:
 
 # Clean up automatically generated files
 clean:
-	$(RM) bin/export
+	$(RM) bin/export out
 
 # Build and run the export command
 run: build
-	./bin/export
+	$(MKDIR) out
+	./bin/export -output out
