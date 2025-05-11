@@ -11,7 +11,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Version contains the current version of the application
 const Version = "0.1.0"
 
 func init() {
@@ -78,9 +77,8 @@ func main() {
 		log.Fatalf("Missing required parameters: user, pass, and url must be provided either as flags or environment variables")
 	}
 
-	// Print version information
 	fmt.Printf("Synology Office Exporter v%s\n", Version)
-	exporter, err := syndexp.NewExporterWithDownloadDir(user, pass, url, downloadDir)
+	exporter, err := syndexp.NewExporter(user, pass, url, downloadDir)
 	if err != nil {
 		log.Fatalf("Failed to create exporter: %v", err)
 	}
