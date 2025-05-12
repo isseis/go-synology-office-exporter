@@ -25,3 +25,9 @@ type DownloadHistoryParseError string
 func (e DownloadHistoryParseError) Error() string {
 	return "failed to parse download history JSON: " + strconv.Quote(string(e))
 }
+
+type ExportFileWriteError string
+
+func (e ExportFileWriteError) Error() string {
+	return "failed to write export file: " + strconv.Quote(string(e))
+}

@@ -12,15 +12,16 @@ import (
 // This interface simplifies testing by allowing file system operations to be mocked.
 type FileSystemOperations interface {
 	// CreateFile writes data to a file, creating parent directories if they don't exist.
-	// This combines directory creation and file writing operations to simplify the workflow.
+	// The `dirPerm` argument specifies the permissions for directories (e.g., 0755 allows
+	// the owner to read, write, and execute, while others can only read and execute).
+	// The `filePerm` argument specifies the permissions for files (e.g., 0644 allows
+	// the owner to read and write, while others can only read).
 	CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error
 }
 
 // DefaultFileSystem implements the FileSystemOperations interface using the os package.
 type DefaultFileSystem struct{}
 
-// CreateFile writes data to a file, creating parent directories if they don't exist.
-// This combines directory creation and file writing operations to simplify the workflow.
 func (fs *DefaultFileSystem) CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
 	// Create parent directories if they don't exist
 	dir := filepath.Dir(filename)
@@ -115,7 +116,7 @@ func (e *Exporter) ExportMyDrive() error {
 
 			// Create parent directories if they don't exist
 			if err := e.fs.CreateFile(downloadPath, resp.Content, 0755, 0644); err != nil {
-				return fmt.Errorf("failed to save file %s: %w", downloadPath, err)
+				return ExportFileWriteError(err.Error())
 			}
 			fmt.Printf("Saved to: %s\n", downloadPath)
 		}
