@@ -15,7 +15,6 @@ func TestTeamFolder(t *testing.T) {
 	resp, err := s.TeamFolder()
 	require.NoError(t, err)
 	//t.Log("Response:", string(resp.raw))
-	require.NoError(t, err)
 	for _, item := range resp.Items {
 		require.NotEmpty(t, item.FileID)
 		require.NotEmpty(t, item.Name)
