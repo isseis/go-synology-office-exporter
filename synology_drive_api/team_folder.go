@@ -52,6 +52,9 @@ func (j *jsonTeamFolderListItemV1) toTeamFolderResponseItem() *TeamFolderRespons
 	}
 }
 
+// TeamFolder retrieves a list of team folders from the Synology Drive API.
+// It returns a TeamFolderResponse containing the list of team folders and their details,
+// or an error if the API request fails.
 func (s *SynologySession) TeamFolder() (*TeamFolderResponse, error) {
 	endpoint := "entry.cgi"
 	params := map[string]string{
