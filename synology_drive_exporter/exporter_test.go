@@ -72,6 +72,12 @@ func TestExporterExportMyDrive(t *testing.T) {
 		fileOperationError error
 		expectedError      bool
 		expectedFiles      int
+		// Track directory IDs that have been listed
+		trackedListCalls map[synd.FileID]bool
+		// Map of directory ID to list response for recursive directory traversal
+		directoryResponses map[synd.FileID]*synd.ListResponse
+		// Map of directory ID to list error for recursive directory traversal
+		directoryErrors map[synd.FileID]error
 	}{
 		{
 			name: "Normal case: Export two files",
@@ -154,6 +160,210 @@ func TestExporterExportMyDrive(t *testing.T) {
 			fileOperationError: errors.New("file operation error"),
 			expectedError:      true,
 		},
+		{
+			name: "Directory traversal: One level deep",
+			listResponse: &synd.ListResponse{
+				Items: []*synd.ListResponseItem{
+					{
+						Type:        synd.ObjectTypeFile,
+						FileID:      "file1",
+						DisplayPath: "/doc/test1.odoc",
+					},
+					{
+						Type:        synd.ObjectTypeDirectory,
+						FileID:      "dir1",
+						Name:        "subdir1",
+						DisplayPath: "/subdir1",
+					},
+				},
+			},
+			directoryResponses: map[synd.FileID]*synd.ListResponse{
+				"dir1": {
+					Items: []*synd.ListResponseItem{
+						{
+							Type:        synd.ObjectTypeFile,
+							FileID:      "file2",
+							DisplayPath: "/subdir1/test2.osheet",
+						},
+					},
+				},
+			},
+			exportResponse: map[synd.FileID]*synd.ExportResponse{
+				"file1": {Content: []byte("file1 content")},
+				"file2": {Content: []byte("file2 content")},
+			},
+			trackedListCalls: make(map[synd.FileID]bool),
+			expectedFiles:    2,
+		},
+		{
+			name: "Directory traversal: Multiple levels deep",
+			listResponse: &synd.ListResponse{
+				Items: []*synd.ListResponseItem{
+					{
+						Type:        synd.ObjectTypeDirectory,
+						FileID:      "dir1",
+						Name:        "level1",
+						DisplayPath: "/level1",
+					},
+				},
+			},
+			directoryResponses: map[synd.FileID]*synd.ListResponse{
+				"dir1": {
+					Items: []*synd.ListResponseItem{
+						{
+							Type:        synd.ObjectTypeDirectory,
+							FileID:      "dir2",
+							Name:        "level2",
+							DisplayPath: "/level1/level2",
+						},
+					},
+				},
+				"dir2": {
+					Items: []*synd.ListResponseItem{
+						{
+							Type:        synd.ObjectTypeFile,
+							FileID:      "file1",
+							DisplayPath: "/level1/level2/test1.odoc",
+						},
+					},
+				},
+			},
+			exportResponse: map[synd.FileID]*synd.ExportResponse{
+				"file1": {Content: []byte("nested file content")},
+			},
+			trackedListCalls: make(map[synd.FileID]bool),
+			expectedFiles:    1,
+		},
+		{
+			name: "Directory traversal: Error in subdirectory should not stop processing",
+			listResponse: &synd.ListResponse{
+				Items: []*synd.ListResponseItem{
+					{
+						Type:        synd.ObjectTypeFile,
+						FileID:      "file1",
+						DisplayPath: "/doc/test1.odoc",
+					},
+					{
+						Type:        synd.ObjectTypeDirectory,
+						FileID:      "dir1",
+						Name:        "error_dir",
+						DisplayPath: "/error_dir",
+					},
+					{
+						Type:        synd.ObjectTypeDirectory,
+						FileID:      "dir2",
+						Name:        "good_dir",
+						DisplayPath: "/good_dir",
+					},
+				},
+			},
+			directoryResponses: map[synd.FileID]*synd.ListResponse{
+				"dir2": {
+					Items: []*synd.ListResponseItem{
+						{
+							Type:        synd.ObjectTypeFile,
+							FileID:      "file2",
+							DisplayPath: "/good_dir/test2.osheet",
+						},
+					},
+				},
+			},
+			directoryErrors: map[synd.FileID]error{
+				"dir1": errors.New("error listing directory"),
+			},
+			exportResponse: map[synd.FileID]*synd.ExportResponse{
+				"file1": {Content: []byte("file1 content")},
+				"file2": {Content: []byte("file2 content")},
+			},
+			trackedListCalls: make(map[synd.FileID]bool),
+			expectedFiles:    2,
+			expectedError:    false,
+		},
+		{
+			name: "Mixed files and directories at multiple levels",
+			listResponse: &synd.ListResponse{
+				Items: []*synd.ListResponseItem{
+					{
+						Type:        synd.ObjectTypeFile,
+						FileID:      "file1",
+						DisplayPath: "/root1.odoc",
+					},
+					{
+						Type:        synd.ObjectTypeDirectory,
+						FileID:      "dir1",
+						Name:        "docs",
+						DisplayPath: "/docs",
+					},
+					{
+						Type:        synd.ObjectTypeFile,
+						FileID:      "file2",
+						DisplayPath: "/root2.osheet",
+					},
+				},
+			},
+			directoryResponses: map[synd.FileID]*synd.ListResponse{
+				"dir1": {
+					Items: []*synd.ListResponseItem{
+						{
+							Type:        synd.ObjectTypeFile,
+							FileID:      "file3",
+							DisplayPath: "/docs/doc1.odoc",
+						},
+						{
+							Type:        synd.ObjectTypeDirectory,
+							FileID:      "dir2",
+							Name:        "archived",
+							DisplayPath: "/docs/archived",
+						},
+					},
+				},
+				"dir2": {
+					Items: []*synd.ListResponseItem{
+						{
+							Type:        synd.ObjectTypeFile,
+							FileID:      "file4",
+							DisplayPath: "/docs/archived/old.odoc",
+						},
+						{
+							Type:        synd.ObjectTypeFile,
+							FileID:      "file5",
+							DisplayPath: "/docs/archived/legacy.osheet",
+						},
+					},
+				},
+			},
+			exportResponse: map[synd.FileID]*synd.ExportResponse{
+				"file1": {Content: []byte("root1 content")},
+				"file2": {Content: []byte("root2 content")},
+				"file3": {Content: []byte("doc1 content")},
+				"file4": {Content: []byte("old content")},
+				"file5": {Content: []byte("legacy content")},
+			},
+			trackedListCalls: make(map[synd.FileID]bool),
+			expectedFiles:    5,
+		},
+		{
+			name: "File paths with multiple leading slashes",
+			listResponse: &synd.ListResponse{
+				Items: []*synd.ListResponseItem{
+					{
+						Type:        synd.ObjectTypeFile,
+						FileID:      "file1",
+						DisplayPath: "///doc/test1.odoc", // Triple leading slashes
+					},
+					{
+						Type:        synd.ObjectTypeFile,
+						FileID:      "file2",
+						DisplayPath: "//doc/test2.osheet", // Double leading slashes
+					},
+				},
+			},
+			exportResponse: map[synd.FileID]*synd.ExportResponse{
+				"file1": {Content: []byte("file1 content")},
+				"file2": {Content: []byte("file2 content")},
+			},
+			expectedFiles: 2,
+		},
 	}
 
 	for _, tt := range tests {
@@ -161,7 +371,37 @@ func TestExporterExportMyDrive(t *testing.T) {
 			// Create mocks
 			mockSession := &MockSynologySession{
 				ListFunc: func(rootDirID synd.FileID) (*synd.ListResponse, error) {
-					return tt.listResponse, tt.listError
+					// Track that this directory was listed
+					if tt.trackedListCalls != nil {
+						tt.trackedListCalls[rootDirID] = true
+					}
+
+					// Return directory-specific error if specified
+					if tt.directoryErrors != nil {
+						if err, ok := tt.directoryErrors[rootDirID]; ok {
+							return nil, err
+						}
+					}
+
+					// Return generic list error if specified
+					if rootDirID == synd.MyDrive && tt.listError != nil {
+						return nil, tt.listError
+					}
+
+					// Return directory-specific response if specified
+					if tt.directoryResponses != nil {
+						if resp, ok := tt.directoryResponses[rootDirID]; ok {
+							return resp, nil
+						}
+					}
+
+					// Return root response for MyDrive
+					if rootDirID == synd.MyDrive {
+						return tt.listResponse, nil
+					}
+
+					// Default empty response
+					return &synd.ListResponse{Items: []*synd.ListResponseItem{}}, nil
 				},
 				ExportFunc: func(fileID synd.FileID) (*synd.ExportResponse, error) {
 					if tt.exportError != nil {
@@ -205,31 +445,68 @@ func TestExporterExportMyDrive(t *testing.T) {
 					tt.expectedFiles, len(mockFS.WrittenFiles))
 			}
 
-			// Validate written files
-			if tt.listResponse != nil && tt.expectedError == false {
-				for _, item := range tt.listResponse.Items {
-					if item.Type == synd.ObjectTypeFile {
-						exportName := synd.GetExportFileName(item.DisplayPath)
-						if exportName == "" {
-							continue
-						}
+			// Check if all expected directories were traversed
+			if tt.directoryResponses != nil {
+				for dirID := range tt.directoryResponses {
+					if tt.directoryErrors != nil && tt.directoryErrors[dirID] != nil {
+						// Skip checking directories we expect to error
+						continue
+					}
+					if !tt.trackedListCalls[dirID] {
+						t.Errorf("Directory with ID %s was not traversed", dirID)
+					}
+				}
+			}
 
-						if exportName[0] == '/' {
-							exportName = exportName[1:]
+			// Validate written paths for nested directory structure
+			if tt.directoryResponses != nil && !tt.expectedError {
+				// Check for files in the root directory
+				if tt.listResponse != nil {
+					for _, item := range tt.listResponse.Items {
+						if item.Type == synd.ObjectTypeFile {
+							validateExportedFile(t, item, mockFS, tt.exportError, tt.fileOperationError)
 						}
-						expectedPath := filepath.Join("/tmp/test", exportName)
+					}
+				}
 
-						if tt.fileOperationError == nil {
-							// Only verify if there's no export error
-							if _, ok := tt.exportError[item.FileID]; !ok {
-								if _, exists := mockFS.WrittenFiles[expectedPath]; !exists {
-									t.Errorf("File %s was not written", expectedPath)
-								}
-							}
+				// Check for files in subdirectories
+				for dirID, resp := range tt.directoryResponses {
+					// Skip directories we expect to error
+					if tt.directoryErrors != nil && tt.directoryErrors[dirID] != nil {
+						continue
+					}
+
+					for _, item := range resp.Items {
+						if item.Type == synd.ObjectTypeFile {
+							validateExportedFile(t, item, mockFS, tt.exportError, tt.fileOperationError)
 						}
 					}
 				}
 			}
 		})
+	}
+}
+
+// validateExportedFile is a helper function to verify that a file was properly exported
+func validateExportedFile(t *testing.T, item *synd.ListResponseItem, mockFS *MockFileSystem, exportErrors map[synd.FileID]error, fileOpError error) {
+	exportName := synd.GetExportFileName(item.DisplayPath)
+	if exportName == "" {
+		return
+	}
+
+	// Clean path and remove all leading slashes
+	cleanPath := filepath.Clean(exportName)
+	for len(cleanPath) > 0 && cleanPath[0] == '/' {
+		cleanPath = cleanPath[1:]
+	}
+	expectedPath := filepath.Join("/tmp/test", cleanPath)
+
+	if fileOpError == nil {
+		// Only verify if there's no export error for this file
+		if exportErrors == nil || exportErrors[item.FileID] == nil {
+			if _, exists := mockFS.WrittenFiles[expectedPath]; !exists {
+				t.Errorf("File %s was not written", expectedPath)
+			}
+		}
 	}
 }

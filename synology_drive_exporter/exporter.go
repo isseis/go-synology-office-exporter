@@ -85,13 +85,31 @@ func NewExporterWithCustomDependencies(session SessionInterface, downloadDir str
 // ExportMyDrive exports all convertible files from the user's Synology Drive
 // and saves them to the download directory.
 func (e *Exporter) ExportMyDrive() error {
-	list, err := e.session.List(synd.MyDrive)
+	return e.processDirectory(synd.MyDrive)
+}
+
+// processDirectory recursively processes a directory and its subdirectories,
+// exporting all convertible Synology Office files.
+// Parameters:
+//   - dirID: The identifier of the directory to process
+//
+// Returns:
+//   - error: An error if the export operation failed
+func (e *Exporter) processDirectory(dirID synd.FileID) error {
+	list, err := e.session.List(dirID)
 	if err != nil {
 		return err
 	}
 
 	for _, item := range list.Items {
-		if item.Type == synd.ObjectTypeFile {
+		if item.Type == synd.ObjectTypeDirectory {
+			// If it's a directory, recursively process it
+			if err := e.processDirectory(item.FileID); err != nil {
+				fmt.Printf("Failed to process directory %s: %v\n", item.DisplayPath, err)
+				// Continue processing other items even if one directory fails
+			}
+		} else if item.Type == synd.ObjectTypeFile {
+			// If it's a file, check if it's exportable and export it
 			exportName := synd.GetExportFileName(item.DisplayPath)
 			if exportName == "" {
 				continue
@@ -106,13 +124,12 @@ func (e *Exporter) ExportMyDrive() error {
 			}
 
 			// Save the file locally with the original directory structure
-			relativePath := exportName
-			if len(relativePath) > 0 && relativePath[0] == '/' {
-				// Remove leading slash if present
-				relativePath = relativePath[1:]
+			localPath := filepath.Clean(exportName)
+			for len(localPath) > 0 && localPath[0] == '/' {
+				localPath = localPath[1:]
 			}
 
-			downloadPath := filepath.Join(e.downloadDir, relativePath)
+			downloadPath := filepath.Join(e.downloadDir, localPath)
 
 			// Create parent directories if they don't exist
 			if err := e.fs.CreateFile(downloadPath, resp.Content, 0755, 0644); err != nil {
