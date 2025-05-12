@@ -26,7 +26,6 @@ type logoutResponseV3 struct {
 //   - error: HttpError if there was a network or request error
 //   - error: SynologyError if authentication failed or the response was invalid
 func (s *SynologySession) Login() error {
-	endpoint := "auth.cgi"
 	params := map[string]string{
 		"api":     "SYNO.API.Auth",
 		"method":  "login",
@@ -36,13 +35,9 @@ func (s *SynologySession) Login() error {
 		"session": synologySessionName,
 		"format":  "cookie",
 	}
-	rawResp, err := s.httpGetJSON(endpoint, params)
-	if err != nil {
-		return err
-	}
 
 	var resp loginResponseV3
-	_, err = s.processAPIResponse(rawResp, &resp, "Login")
+	_, err := s.callAPI(params, &resp, "Login")
 	if err != nil {
 		return err
 	}
@@ -62,7 +57,6 @@ func (s *SynologySession) Login() error {
 //   - error: HttpError if there was a network or request error
 //   - error: SynologyError if the logout failed or the response was invalid
 func (s *SynologySession) Logout() error {
-	endpoint := "auth.cgi"
 	params := map[string]string{
 		"api":     "SYNO.API.Auth",
 		"method":  "logout",
@@ -70,13 +64,8 @@ func (s *SynologySession) Logout() error {
 		"session": synologySessionName,
 	}
 
-	rawResp, err := s.httpGetJSON(endpoint, params)
-	if err != nil {
-		return err
-	}
-
 	var resp logoutResponseV3
-	_, err = s.processAPIResponse(rawResp, &resp, "Logout")
+	_, err := s.callAPI(params, &resp, "Logout")
 	if err != nil {
 		return err
 	}

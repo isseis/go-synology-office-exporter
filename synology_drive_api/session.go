@@ -137,6 +137,31 @@ func (s *SynologySession) httpGetJSON(endpoint string, params map[string]string)
 	return s.httpRequest(http.MethodGet, endpoint, params, options)
 }
 
+// callAPI handles the common pattern of making an API call and processing the response.
+// It automatically determines the appropriate endpoint based on the API being called.
+// Parameters:
+//   - params: Query parameters to include in the URL, containing the 'api' key that determines the endpoint
+//   - v: Pointer to a struct implementing the SynologyResponse interface to unmarshal the JSON into
+//   - operationName: Context information for error messages
+//
+// Returns:
+//   - []byte: Raw JSON response data
+//   - error: Any error encountered during processing
+func (s *SynologySession) callAPI(params map[string]string, v SynologyResponse, operationName string) ([]byte, error) {
+	// Determine the appropriate endpoint based on the API being accessed
+	endpoint := "entry.cgi"
+	if api, exists := params["api"]; exists && api == "SYNO.API.Auth" {
+		endpoint = "auth.cgi"
+	}
+
+	httpResponse, err := s.httpGetJSON(endpoint, params)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.processAPIResponse(httpResponse, v, operationName)
+}
+
 // processAPIResponse processes the API response, unmarshals the JSON, and checks if it was successful
 // Parameters:
 //   - response: HTTP response from the API
