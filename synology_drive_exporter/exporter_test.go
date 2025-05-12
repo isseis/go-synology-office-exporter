@@ -10,8 +10,7 @@ import (
 )
 
 type MockFileSystem struct {
-	MkdirAllFunc  func(string, os.FileMode) error
-	WriteFileFunc func(string, []byte, os.FileMode) error
+	CreateFileFunc func(string, []byte, os.FileMode, os.FileMode) error
 	// Records created directories and files
 	CreatedDirs  []string
 	WrittenFiles map[string][]byte
@@ -19,36 +18,27 @@ type MockFileSystem struct {
 
 func NewMockFileSystem() *MockFileSystem {
 	return &MockFileSystem{
-		MkdirAllFunc: func(path string, perm os.FileMode) error {
-			return nil
-		},
-		WriteFileFunc: func(filename string, data []byte, perm os.FileMode) error {
+		CreateFileFunc: func(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
 			return nil
 		},
 		WrittenFiles: make(map[string][]byte),
 	}
 }
 
-func (m *MockFileSystem) MkdirAll(path string, perm os.FileMode) error {
-	if m.MkdirAllFunc != nil {
-		err := m.MkdirAllFunc(path, perm)
+func (m *MockFileSystem) CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
+	if m.CreateFileFunc != nil {
+		err := m.CreateFileFunc(filename, data, dirPerm, filePerm)
 		if err == nil {
-			m.CreatedDirs = append(m.CreatedDirs, path)
-		}
-		return err
-	}
-	m.CreatedDirs = append(m.CreatedDirs, path)
-	return nil
-}
-
-func (m *MockFileSystem) WriteFile(filename string, data []byte, perm os.FileMode) error {
-	if m.WriteFileFunc != nil {
-		err := m.WriteFileFunc(filename, data, perm)
-		if err == nil {
+			dir := filepath.Dir(filename)
+			m.CreatedDirs = append(m.CreatedDirs, dir)
 			m.WrittenFiles[filename] = data
 		}
 		return err
 	}
+
+	// If no custom function provided, create directory and write file
+	dir := filepath.Dir(filename)
+	m.CreatedDirs = append(m.CreatedDirs, dir)
 	m.WrittenFiles[filename] = data
 	return nil
 }
@@ -74,15 +64,14 @@ func (m *MockSynologySession) Export(fileID synd.FileID) (*synd.ExportResponse, 
 
 func TestExporterExportMyDrive(t *testing.T) {
 	tests := []struct {
-		name           string
-		listResponse   *synd.ListResponse
-		listError      error
-		exportResponse map[synd.FileID]*synd.ExportResponse
-		exportError    map[synd.FileID]error
-		mkdirError     error
-		writeFileError error
-		expectedError  bool
-		expectedFiles  int
+		name               string
+		listResponse       *synd.ListResponse
+		listError          error
+		exportResponse     map[synd.FileID]*synd.ExportResponse
+		exportError        map[synd.FileID]error
+		fileOperationError error
+		expectedError      bool
+		expectedFiles      int
 	}{
 		{
 			name: "Normal case: Export two files",
@@ -149,7 +138,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 			expectedFiles: 0, // Errors are only logged and processing continues
 		},
 		{
-			name: "Error creating directory",
+			name: "Error during file operation",
 			listResponse: &synd.ListResponse{
 				Items: []*synd.ListResponseItem{
 					{
@@ -162,25 +151,8 @@ func TestExporterExportMyDrive(t *testing.T) {
 			exportResponse: map[synd.FileID]*synd.ExportResponse{
 				"file1": {Content: []byte("file1 content")},
 			},
-			mkdirError:    errors.New("mkdir error"),
-			expectedError: true,
-		},
-		{
-			name: "Error writing file",
-			listResponse: &synd.ListResponse{
-				Items: []*synd.ListResponseItem{
-					{
-						Type:        synd.ObjectTypeFile,
-						FileID:      "file1",
-						DisplayPath: "/doc/test1.odoc", // .docx -> .odoc
-					},
-				},
-			},
-			exportResponse: map[synd.FileID]*synd.ExportResponse{
-				"file1": {Content: []byte("file1 content")},
-			},
-			writeFileError: errors.New("write file error"),
-			expectedError:  true,
+			fileOperationError: errors.New("file operation error"),
+			expectedError:      true,
 		},
 	}
 
@@ -207,14 +179,9 @@ func TestExporterExportMyDrive(t *testing.T) {
 			}
 
 			mockFS := NewMockFileSystem()
-			if tt.mkdirError != nil {
-				mockFS.MkdirAllFunc = func(path string, perm os.FileMode) error {
-					return tt.mkdirError
-				}
-			}
-			if tt.writeFileError != nil {
-				mockFS.WriteFileFunc = func(filename string, data []byte, perm os.FileMode) error {
-					return tt.writeFileError
+			if tt.fileOperationError != nil {
+				mockFS.CreateFileFunc = func(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
+					return tt.fileOperationError
 				}
 			}
 
@@ -252,7 +219,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 						}
 						expectedPath := filepath.Join("/tmp/test", exportName)
 
-						if tt.mkdirError == nil && tt.writeFileError == nil {
+						if tt.fileOperationError == nil {
 							// Only verify if there's no export error
 							if _, ok := tt.exportError[item.FileID]; !ok {
 								if _, exists := mockFS.WrittenFiles[expectedPath]; !exists {

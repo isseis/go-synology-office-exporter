@@ -10,26 +10,30 @@ import (
 
 // FileSystemOperations defines an interface for file system operations used by the Exporter.
 // This interface simplifies testing by allowing file system operations to be mocked.
-// TODO: Consider unifying two methods into one, e.g., CreateFile(path string, data []byte, perm os.FileMode) error
 type FileSystemOperations interface {
-	// MkdirAll creates a directory named path, along with any necessary parents.
-	MkdirAll(path string, perm os.FileMode) error
-
-	// WriteFile writes data to a file named by filename.
-	WriteFile(filename string, data []byte, perm os.FileMode) error
+	// CreateFile writes data to a file, creating parent directories if they don't exist.
+	// This combines directory creation and file writing operations to simplify the workflow.
+	CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error
 }
 
 // DefaultFileSystem implements the FileSystemOperations interface using the os package.
 type DefaultFileSystem struct{}
 
-// MkdirAll creates a directory using os.MkdirAll.
-func (fs *DefaultFileSystem) MkdirAll(path string, perm os.FileMode) error {
-	return os.MkdirAll(path, perm)
-}
+// CreateFile writes data to a file, creating parent directories if they don't exist.
+// This combines directory creation and file writing operations to simplify the workflow.
+func (fs *DefaultFileSystem) CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
+	// Create parent directories if they don't exist
+	dir := filepath.Dir(filename)
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
+		return fmt.Errorf("failed to create directories for %s: %w", filename, err)
+	}
 
-// WriteFile writes to a file using os.WriteFile.
-func (fs *DefaultFileSystem) WriteFile(filename string, data []byte, perm os.FileMode) error {
-	return os.WriteFile(filename, data, perm)
+	// Write data to the file
+	if err := os.WriteFile(filename, data, filePerm); err != nil {
+		return fmt.Errorf("failed to write to file %s: %w", filename, err)
+	}
+
+	return nil
 }
 
 // SessionInterface defines an interface for the Synology session operations.
@@ -110,11 +114,7 @@ func (e *Exporter) ExportMyDrive() error {
 			downloadPath := filepath.Join(e.downloadDir, relativePath)
 
 			// Create parent directories if they don't exist
-			downloadDir := filepath.Dir(downloadPath)
-			if err := e.fs.MkdirAll(downloadDir, 0755); err != nil {
-				return fmt.Errorf("failed to create directories for %s: %w", downloadPath, err)
-			}
-			if err := e.fs.WriteFile(downloadPath, resp.Content, 0644); err != nil {
+			if err := e.fs.CreateFile(downloadPath, resp.Content, 0755, 0644); err != nil {
 				return fmt.Errorf("failed to save file %s: %w", downloadPath, err)
 			}
 			fmt.Printf("Saved to: %s\n", downloadPath)
