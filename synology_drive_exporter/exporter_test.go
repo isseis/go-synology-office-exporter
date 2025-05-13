@@ -44,8 +44,9 @@ func (m *MockFileSystem) CreateFile(filename string, data []byte, dirPerm os.Fil
 }
 
 type MockSynologySession struct {
-	ListFunc   func(rootDirID synd.FileID) (*synd.ListResponse, error)
-	ExportFunc func(fileID synd.FileID) (*synd.ExportResponse, error)
+	ListFunc       func(rootDirID synd.FileID) (*synd.ListResponse, error)
+	ExportFunc     func(fileID synd.FileID) (*synd.ExportResponse, error)
+	TeamFolderFunc func() (*synd.TeamFolderResponse, error)
 }
 
 func (m *MockSynologySession) List(rootDirID synd.FileID) (*synd.ListResponse, error) {
@@ -60,6 +61,13 @@ func (m *MockSynologySession) Export(fileID synd.FileID) (*synd.ExportResponse, 
 		return m.ExportFunc(fileID)
 	}
 	return &synd.ExportResponse{}, nil
+}
+
+func (m *MockSynologySession) TeamFolder() (*synd.TeamFolderResponse, error) {
+	if m.TeamFolderFunc != nil {
+		return m.TeamFolderFunc()
+	}
+	return &synd.TeamFolderResponse{}, nil
 }
 
 func TestExporterExportMyDrive(t *testing.T) {

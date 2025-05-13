@@ -45,6 +45,9 @@ type SessionInterface interface {
 
 	// Export exports the specified file with conversion.
 	Export(fileID synd.FileID) (*synd.ExportResponse, error)
+
+	// TeamFolder retrieves a list of team folders from the Synology Drive API.
+	TeamFolder() (*synd.TeamFolderResponse, error)
 }
 
 // Exporter provides functionality to export files from Synology Drive.
@@ -86,6 +89,20 @@ func NewExporterWithCustomDependencies(session SessionInterface, downloadDir str
 // and saves them to the download directory.
 func (e *Exporter) ExportMyDrive() error {
 	return e.processDirectory(synd.MyDrive)
+}
+
+func (e *Exporter) ExportTeamFolder() error {
+	teamFolder, err := e.session.TeamFolder()
+	if err != nil {
+		return err
+	}
+
+	for _, item := range teamFolder.Items {
+		if err := e.processDirectory(item.FileID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // processDirectory recursively processes a directory and its subdirectories,
