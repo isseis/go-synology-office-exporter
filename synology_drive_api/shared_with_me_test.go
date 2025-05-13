@@ -3,6 +3,7 @@ package synology_drive_api
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,7 +15,13 @@ func TestSharedWithMe(t *testing.T) {
 
 	resp, err := s.SharedWithMe()
 	require.NoError(t, err)
-	t.Log("Response:", string(resp.raw))
+	// t.Log("Response:", string(resp.raw))
+	assert.GreaterOrEqual(t, resp.Total, int64(0))
+	for _, item := range resp.Items {
+		assert.NotEmpty(t, item.FileID)
+		assert.NotEmpty(t, item.Name)
+		assert.NotEmpty(t, item.Path)
+	}
 	/* Sample Response:
 	{
 		"data": {
