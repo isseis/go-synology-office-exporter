@@ -51,6 +51,19 @@ type FileID string
 // FileHash represents the hash of a file on SynologyDrive
 type FileHash string
 
+// APIName represents the name of a Synology API
+// Used for type safety when specifying the api field in apiRequest
+// Example: APINameSynologyDriveFiles, APINameSynologyAPIAuth, etc.
+type APIName string
+
+// API names for Synology API requests
+const (
+	APINameSynologyDriveFiles       APIName = "SYNO.SynologyDrive.Files"
+	APINameSynologyDriveTeamFolders APIName = "SYNO.SynologyDrive.TeamFolders"
+	APINameSynologyAPIAuth          APIName = "SYNO.API.Auth"
+	APINameSynologyOfficeExport     APIName = "SYNO.Office.Export"
+)
+
 // MyDrive represents the root folder identifier in Synology Drive
 const MyDrive = FileID("/mydrive/")
 

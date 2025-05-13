@@ -32,7 +32,7 @@ func (s *SynologySession) Export(fileID FileID) (*ExportResponse, error) {
 
 	endpoint := fmt.Sprintf("entry.cgi/%s", exportName)
 	params := map[string]string{
-		"api":     "SYNO.Office.Export",
+		"api":     string(APINameSynologyOfficeExport),
 		"method":  "download",
 		"version": "1",
 		"path":    fmt.Sprintf("id:%s", ret.FileID),

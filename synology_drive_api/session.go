@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -139,7 +140,7 @@ func (s *SynologySession) httpGetJSON(endpoint string, params map[string]string)
 
 // apiRequest represents a Synology API request with its required parameters
 type apiRequest struct {
-	api     string            // API name (e.g., "SYNO.SynologyDrive.Files")
+	api     APIName           // API name (e.g., APINameSynologyDriveFiles)
 	method  string            // API method (e.g., "list", "get")
 	version string            // API version (e.g., "1", "2", "3")
 	params  map[string]string // Additional parameters
@@ -149,29 +150,27 @@ type apiRequest struct {
 // This ensures that the required parameters (api, method, version) are always provided.
 // Parameters:
 //   - req: apiRequest containing the required parameters and any additional parameters
-//   - v: Pointer to a struct implementing the SynologyResponse interface to unmarshal the JSON into
-//   - operationName: Context information for error messages
+//   - synRes: Pointer to a struct implementing the SynologyResponse interface to unmarshal the JSON into
+//   - errorContext: Context information for error messages (e.g. operation name)
 //
 // Returns:
 //   - []byte: Raw JSON response data
 //   - error: Any error encountered during processing
-func (s *SynologySession) callAPI(req apiRequest, v SynologyResponse, operationName string) ([]byte, error) {
+func (s *SynologySession) callAPI(req apiRequest, synRes SynologyResponse, errorContext string) ([]byte, error) {
 	// Create a new map with the required parameters
 	params := make(map[string]string)
 
 	// Set the required parameters
-	params["api"] = req.api
+	params["api"] = string(req.api)
 	params["method"] = req.method
 	params["version"] = req.version
 
 	// Add any additional parameters
-	for k, v := range req.params {
-		params[k] = v
-	}
+	maps.Copy(params, req.params)
 
 	// Determine the appropriate endpoint based on the API being accessed
 	endpoint := "entry.cgi"
-	if req.api == "SYNO.API.Auth" {
+	if req.api == APINameSynologyAPIAuth {
 		endpoint = "auth.cgi"
 	}
 
@@ -180,19 +179,19 @@ func (s *SynologySession) callAPI(req apiRequest, v SynologyResponse, operationN
 		return nil, err
 	}
 
-	return s.processAPIResponse(httpResponse, v, operationName)
+	return s.processAPIResponse(httpResponse, synRes, errorContext)
 }
 
 // processAPIResponse processes the API response, unmarshals the JSON, and checks if it was successful
 // Parameters:
 //   - response: HTTP response from the API
-//   - v: Pointer to a struct implementing the SynologyResponse interface to unmarshal the JSON into
+//   - synRes: Pointer to a struct implementing the SynologyResponse interface to unmarshal the JSON into
 //   - errorContext: Context information for error messages
 //
 // Returns:
 //   - []byte: Raw JSON response data
 //   - error: Any error encountered during processing
-func (s *SynologySession) processAPIResponse(response *http.Response, v SynologyResponse, errorContext string) ([]byte, error) {
+func (s *SynologySession) processAPIResponse(response *http.Response, synRes SynologyResponse, errorContext string) ([]byte, error) {
 
 	// Read the response body
 	defer response.Body.Close()
@@ -202,13 +201,13 @@ func (s *SynologySession) processAPIResponse(response *http.Response, v Synology
 	}
 
 	// Unmarshal the JSON
-	if err := json.Unmarshal(body, v); err != nil {
+	if err := json.Unmarshal(body, synRes); err != nil {
 		return body, SynologyError(err.Error())
 	}
 
-	if !v.GetSuccess() {
+	if !synRes.GetSuccess() {
 		// Get error information
-		err := v.GetError()
+		err := synRes.GetError()
 
 		if err.Errors.Message != "" {
 			return body, SynologyError(fmt.Sprintf("%s failed: %s [code=%d, line=%d]",

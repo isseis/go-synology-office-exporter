@@ -57,7 +57,7 @@ func (j *jsonTeamFolderListItemV1) toTeamFolderResponseItem() *TeamFolderRespons
 // or an error if the API request fails.
 func (s *SynologySession) TeamFolder() (*TeamFolderResponse, error) {
 	req := apiRequest{
-		api:     "SYNO.SynologyDrive.TeamFolders",
+		api:     APINameSynologyDriveTeamFolders,
 		method:  "list",
 		version: "1",
 		params: map[string]string{

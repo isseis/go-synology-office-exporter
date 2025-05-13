@@ -229,7 +229,7 @@ type ListResponse struct {
 //   - error: SynologyError if the listing failed or the response was invalid
 func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 	req := apiRequest{
-		api:     "SYNO.SynologyDrive.Files",
+		api:     APINameSynologyDriveFiles,
 		method:  "list",
 		version: "2",
 		params: map[string]string{
