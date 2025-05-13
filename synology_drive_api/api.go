@@ -54,8 +54,8 @@ func isdigits(s string) bool {
 	if len(s) == 0 {
 		return false
 	}
-	for i := range len(s) {
-		if s[i] < '0' || '9' < s[i] {
+	for _, c := range s {
+		if c < '0' || '9' < c {
 			return false
 		}
 	}
