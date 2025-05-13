@@ -1,7 +1,10 @@
 // package synology_drive_api provides functionality to interact with the Synology Drive API
 package synology_drive_api
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // SynologyResponse is an interface that provides common response functionality from the Synology API
 type SynologyResponse interface {
@@ -213,13 +216,34 @@ type SharedWith struct {
 	Type         SharedEntity // "user" or "group"
 }
 
-// convertSharedWith converts a slice of jsonSharedWithItem to a slice of SharedWithItem
-func convertSharedWith(items []jsonSharedWith) []SharedWith {
+// convertSharedWithList converts a slice of jsonSharedWithItem to a slice of SharedWithItem
+func convertSharedWithList(items []jsonSharedWith) []SharedWith {
 	result := make([]SharedWith, len(items))
 	for i, item := range items {
-		result[i] = SharedWith(item)
+		result[i] = item.toSharedWith()
 	}
 	return result
+}
+
+// toSharedWith converts a jsonSharedWithItem to a SharedWithItem
+func (j *jsonSharedWith) toSharedWith() SharedWith {
+	return SharedWith(*j)
+}
+
+// jsonAppProperties represents the app properties of a file or folder
+// in the raw JSON API response
+type jsonAppProperties struct {
+	Type string `json:"type"`
+}
+
+// AppProperties represents the app properties of a file or folder
+type AppProperties struct {
+	Type string
+}
+
+// toAppProperties converts a jsonAppProperties to an AppProperties
+func (j *jsonAppProperties) toAppProperties() AppProperties {
+	return AppProperties(*j)
 }
 
 // jsonCapabilities represents the permission capabilities a user has on a file or folder
@@ -254,6 +278,29 @@ type Capabilities struct {
 	CanWrite    bool
 }
 
+// toCapabilities converts a jsonCapabilities to a Capabilities
+func (j *jsonCapabilities) toCapabilities() Capabilities {
+	return Capabilities(*j)
+}
+
+// jsonImageMetadata represents the image metadata of a file or folder
+// in the raw JSON API response
+type jsonImageMetadata struct {
+	Time jsonTimeStamp `json:"time"`
+}
+
+// ImageMetadata represents the image metadata of a file or folder
+type ImageMetadata struct {
+	Time time.Time
+}
+
+// toImageMetadata converts a jsonImageMetadata to an ImageMetadata
+func (j *jsonImageMetadata) toImageMetadata() ImageMetadata {
+	return ImageMetadata{
+		Time: j.Time.toTime(),
+	}
+}
+
 // jsonOwner represents the owner information of a file or folder
 // in the raw JSON API response
 type jsonOwner struct {
@@ -270,6 +317,37 @@ type Owner struct {
 	Name        string
 	Nickname    string
 	UID         UserID
+}
+
+// toOwner converts a jsonOwner to an Owner
+func (j *jsonOwner) toOwner() Owner {
+	return Owner(*j)
+}
+
+// jsonProperties represents the properties of a file or folder
+// in the raw JSON API response
+type jsonProperties struct {
+	ObjectID string `json:"object_id"`
+}
+
+// Properties represents the properties of a file or folder
+type Properties struct {
+	ObjectID string
+}
+
+// toProperties converts a jsonProperties to a Properties
+func (j *jsonProperties) toProperties() Properties {
+	return Properties{
+		ObjectID: j.ObjectID,
+	}
+}
+
+// jsonTimeStamp represents a Unix timestamp in the raw JSON API response
+type jsonTimeStamp int64
+
+// toTime converts a jsonTimeStamp to a time.Time
+func (j jsonTimeStamp) toTime() time.Time {
+	return time.Unix(int64(j), 0)
 }
 
 // officeExtensionMap defines the mapping between Synology Office file extensions
