@@ -182,15 +182,17 @@ func (j *jsonGetResponseDataV3) toResponse() *GetResponse {
 //   - error: HttpError if there was a network or request error
 //   - error: SynologyError if the get operation failed or the response was invalid
 func (s *SynologySession) Get(fileID FileID) (*GetResponse, error) {
-	params := map[string]string{
-		"api":     "SYNO.SynologyDrive.Files",
-		"method":  "get",
-		"version": "3",
-		"path":    "id:" + string(fileID),
+	req := apiRequest{
+		api:     "SYNO.SynologyDrive.Files",
+		method:  "get",
+		version: "3",
+		params: map[string]string{
+			"path": "id:" + string(fileID),
+		},
 	}
 
 	var jsonResponse jsonGetResponseV3
-	body, err := s.callAPI(params, &jsonResponse, "Get")
+	body, err := s.callAPI(req, &jsonResponse, "Get")
 	if err != nil {
 		return nil, err
 	}

@@ -228,20 +228,22 @@ type ListResponse struct {
 //   - error: HttpError if there was a network or request error
 //   - error: SynologyError if the listing failed or the response was invalid
 func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
-	params := map[string]string{
-		"api":            "SYNO.SynologyDrive.Files",
-		"method":         "list",
-		"version":        "2",
-		"filter":         "{}",
-		"sort_direction": "asc",
-		"sort_by":        "owner",
-		"offset":         "0",
-		"limit":          "1000",
-		"path":           string(fileID),
+	req := apiRequest{
+		api:     "SYNO.SynologyDrive.Files",
+		method:  "list",
+		version: "2",
+		params: map[string]string{
+			"filter":         "{}",
+			"sort_direction": "asc",
+			"sort_by":        "owner",
+			"offset":         "0",
+			"limit":          "1000",
+			"path":           string(fileID),
+		},
 	}
 
 	var jsonResponse jsonListResponseV2
-	body, err := s.callAPI(params, &jsonResponse, "List folder")
+	body, err := s.callAPI(req, &jsonResponse, "List folder")
 	if err != nil {
 		return nil, err
 	}

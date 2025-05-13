@@ -56,19 +56,21 @@ func (j *jsonTeamFolderListItemV1) toTeamFolderResponseItem() *TeamFolderRespons
 // It returns a TeamFolderResponse containing the list of team folders and their details,
 // or an error if the API request fails.
 func (s *SynologySession) TeamFolder() (*TeamFolderResponse, error) {
-	params := map[string]string{
-		"api":            "SYNO.SynologyDrive.TeamFolders",
-		"method":         "list",
-		"version":        "1",
-		"filter":         "{}",
-		"sort_direction": "asc",
-		"sort_by":        "owner",
-		"offset":         "0",
-		"limit":          "1000",
+	req := apiRequest{
+		api:     "SYNO.SynologyDrive.TeamFolders",
+		method:  "list",
+		version: "1",
+		params: map[string]string{
+			"filter":         "{}",
+			"sort_direction": "asc",
+			"sort_by":        "owner",
+			"offset":         "0",
+			"limit":          "1000",
+		},
 	}
 
 	var jsonResponse jsonTeamFolderListResponseV1
-	body, err := s.callAPI(params, &jsonResponse, "List team folder")
+	body, err := s.callAPI(req, &jsonResponse, "List team folder")
 	if err != nil {
 		return nil, err
 	}

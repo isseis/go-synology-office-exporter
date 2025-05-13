@@ -137,20 +137,41 @@ func (s *SynologySession) httpGetJSON(endpoint string, params map[string]string)
 	return s.httpRequest(http.MethodGet, endpoint, params, options)
 }
 
-// callAPI handles the common pattern of making an API call and processing the response.
-// It automatically determines the appropriate endpoint based on the API being called.
+// apiRequest represents a Synology API request with its required parameters
+type apiRequest struct {
+	api     string            // API name (e.g., "SYNO.SynologyDrive.Files")
+	method  string            // API method (e.g., "list", "get")
+	version string            // API version (e.g., "1", "2", "3")
+	params  map[string]string // Additional parameters
+}
+
+// callAPI handles an API call with required parameters explicitly defined.
+// This ensures that the required parameters (api, method, version) are always provided.
 // Parameters:
-//   - params: Query parameters to include in the URL, containing the 'api' key that determines the endpoint
+//   - req: apiRequest containing the required parameters and any additional parameters
 //   - v: Pointer to a struct implementing the SynologyResponse interface to unmarshal the JSON into
 //   - operationName: Context information for error messages
 //
 // Returns:
 //   - []byte: Raw JSON response data
 //   - error: Any error encountered during processing
-func (s *SynologySession) callAPI(params map[string]string, v SynologyResponse, operationName string) ([]byte, error) {
+func (s *SynologySession) callAPI(req apiRequest, v SynologyResponse, operationName string) ([]byte, error) {
+	// Create a new map with the required parameters
+	params := make(map[string]string)
+
+	// Set the required parameters
+	params["api"] = req.api
+	params["method"] = req.method
+	params["version"] = req.version
+
+	// Add any additional parameters
+	for k, v := range req.params {
+		params[k] = v
+	}
+
 	// Determine the appropriate endpoint based on the API being accessed
 	endpoint := "entry.cgi"
-	if api, exists := params["api"]; exists && api == "SYNO.API.Auth" {
+	if req.api == "SYNO.API.Auth" {
 		endpoint = "auth.cgi"
 	}
 
