@@ -35,7 +35,7 @@ func (s *SynologySession) Export(fileID FileID) (*ExportResponse, error) {
 		"api":     string(APINameSynologyOfficeExport),
 		"method":  "download",
 		"version": "1",
-		"path":    fmt.Sprintf("id:%s", ret.FileID),
+		"path":    ret.FileID.toAPIParam(),
 	}
 
 	// Use httpGet with empty ContentType for export operations
