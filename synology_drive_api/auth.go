@@ -27,7 +27,7 @@ type logoutResponseV3 struct {
 //   - error: SynologyError if authentication failed or the response was invalid
 func (s *SynologySession) Login() error {
 	req := apiRequest{
-		api:     "SYNO.API.Auth",
+		api:     APINameSynologyAPIAuth,
 		method:  "login",
 		version: "3",
 		params: map[string]string{
@@ -60,7 +60,7 @@ func (s *SynologySession) Login() error {
 //   - error: SynologyError if the logout failed or the response was invalid
 func (s *SynologySession) Logout() error {
 	req := apiRequest{
-		api:     "SYNO.API.Auth",
+		api:     APINameSynologyAPIAuth,
 		method:  "logout",
 		version: "3",
 		params: map[string]string{
