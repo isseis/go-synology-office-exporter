@@ -23,7 +23,7 @@ type jsonGetResponseDataV3 struct {
 	DsmPath                string           `json:"dsm_path"`
 	EnableWatermark        bool             `json:"enable_watermark"`
 	Encrypted              bool             `json:"encrypted"`
-	FileID                 string           `json:"file_id"`
+	FileID                 FileID           `json:"file_id"`
 	ForceWatermarkDownload bool             `json:"force_watermark_download"`
 	Hash                   string           `json:"hash"`
 	ImageMetadata          struct {
@@ -80,7 +80,7 @@ type GetResponse struct {
 	DsmPath                string
 	EnableWatermark        bool
 	Encrypted              bool
-	FileID                 string
+	FileID                 FileID
 	ForceWatermarkDownload bool
 	Hash                   string
 	ImageMetadata          struct {
@@ -187,7 +187,7 @@ func (s *SynologySession) Get(fileID FileID) (*GetResponse, error) {
 		method:  "get",
 		version: "3",
 		params: map[string]string{
-			"path": "id:" + string(fileID),
+			"path": fileID.toAPIParam(),
 		},
 	}
 

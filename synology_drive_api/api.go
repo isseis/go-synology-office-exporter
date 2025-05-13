@@ -46,7 +46,29 @@ type DeviceID string
 type UserID int
 
 // FileID represents an identifier of a file on SynologyDrive
+// This can be a path (e.g. "/mydrive/somefile.odoc") or an ID (e.g. "123456789")
 type FileID string
+
+// isdigits checks if a string contains only digits
+func isdigits(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || '9' < c {
+			return false
+		}
+	}
+	return true
+}
+
+// toAPIParam converts a FileID to a string that can be used as a parameter in an API request
+func (fileID FileID) toAPIParam() string {
+	if isdigits(string(fileID)) {
+		return "id:" + string(fileID)
+	}
+	return string(fileID)
+}
 
 // FileHash represents the hash of a file on SynologyDrive
 type FileHash string
@@ -89,6 +111,9 @@ func (o ObjectType) isValid() bool {
 // contentType represents the type of content in a Synology Drive file
 type contentType string
 
+// ContentTypeDocument represents a audio type in Synology Drive
+const ContentTypeAudio = contentType("audio")
+
 // ContentTypeDocument represents a document type in Synology Drive
 const ContentTypeDocument = contentType("document")
 
@@ -98,10 +123,16 @@ const ContentTypeDirectory = contentType("dir")
 // ContentTypeFile represents a regular file type in Synology Drive
 const ContentTypeFile = contentType("file")
 
+// ContentTypeImage represents an image type in Synology Drive
+const ContentTypeImage = contentType("image")
+
+// ContentTypeVideo represents a video type in Synology Drive
+const ContentTypeVideo = contentType("video")
+
 // isValid checks if the contentType is a valid supported type
 func (c contentType) isValid() bool {
 	switch c {
-	case ContentTypeDocument, ContentTypeDirectory, ContentTypeFile:
+	case ContentTypeAudio, ContentTypeDocument, ContentTypeDirectory, ContentTypeFile, ContentTypeImage, ContentTypeVideo:
 		return true
 	default:
 		return false

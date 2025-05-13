@@ -58,7 +58,7 @@ type jsonListResponseItemV2 struct {
 
 func (item *jsonListResponseItemV2) validate() error {
 	if !item.ContentType.isValid() {
-		return SynologyError(fmt.Sprintf("Invalid content type: %s", item.ContentType))
+		return SynologyError(fmt.Sprintf("Invalid or unknown content type: %s", item.ContentType))
 	}
 	if !item.Type.isValid() {
 		return SynologyError(fmt.Sprintf("Invalid type: %s", item.Type))
@@ -238,18 +238,18 @@ func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 			"sort_by":        "owner",
 			"offset":         "0",
 			"limit":          "1000",
-			"path":           string(fileID),
+			"path":           fileID.toAPIParam(),
 		},
 	}
 
 	var jsonResponse jsonListResponseV2
 	body, err := s.callAPI(req, &jsonResponse, "List folder")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list folder %s: %w", fileID, err)
 	}
 
 	if err := jsonResponse.Data.validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to validate list response for folder %s: %w", fileID, err)
 	}
 
 	resp := ListResponse{

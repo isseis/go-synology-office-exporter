@@ -83,10 +83,16 @@ func main() {
 		log.Fatalf("Failed to create exporter: %v", err)
 	}
 
+	exitCode := 0
 	if err := exporter.ExportMyDrive(); err != nil {
-		log.Fatalf("Export failed: %v", err)
+		exitCode = 1
+		log.Printf("Export failed: %v", err)
+	}
+	if err := exporter.ExportTeamFolder(); err != nil {
+		exitCode = 1
+		log.Printf("Export failed: %v", err)
 	}
 
 	log.Println("Export complete")
-	os.Exit(0)
+	os.Exit(exitCode)
 }

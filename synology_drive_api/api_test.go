@@ -70,3 +70,26 @@ func TestGetExportFileName(t *testing.T) {
 		})
 	}
 }
+
+func TestFileIDToAPIParam(t *testing.T) {
+	tests := []struct {
+		name  string
+		input FileID
+		want  string
+	}{
+		{"All digits", FileID("12345"), "id:12345"},
+		{"Non-digits", FileID("abcde"), "abcde"},
+		{"Mixed digits and letters", FileID("123abc"), "123abc"},
+		{"Empty string", FileID(""), ""},
+		{"Leading zeros", FileID("00123"), "id:00123"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.input.toAPIParam()
+			if got != tt.want {
+				t.Errorf("FileID(%q).toAPIParam() = %q, want %q", string(tt.input), got, tt.want)
+			}
+		})
+	}
+}
