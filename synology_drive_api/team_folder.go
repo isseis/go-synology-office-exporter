@@ -42,7 +42,7 @@ type TeamFolderResponse struct {
 // to a TeamFolderResponseItem
 func (j *jsonTeamFolderListItemV1) toTeamFolderResponseItem() *TeamFolderResponseItem {
 	return &TeamFolderResponseItem{
-		Capabilities:     Capabilities(j.Capabilities),
+		Capabilities:     j.Capabilities.toCapabilities(),
 		DisableDownload:  j.DisableDownload,
 		EnableVersioning: j.EnableVersioning,
 		FileID:           j.FileID,

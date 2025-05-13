@@ -5,9 +5,7 @@ import (
 	"time"
 )
 
-// jsonListResponseItemV2 represents a file or folder item in a Synology Drive listing
-// in the raw JSON API response
-type jsonListResponseItemV2 struct {
+type jsonSharedWithMeResponseItemV2 struct {
 	AccessTime             jsonTimeStamp     `json:"access_time"`
 	AdvShared              bool              `json:"adv_shared"`
 	AppProperties          jsonAppProperties `json:"app_properties"`
@@ -36,7 +34,7 @@ type jsonListResponseItemV2 struct {
 	PermanentLink          string            `json:"permanent_link"`
 	Properties             jsonProperties    `json:"properties"`
 	Removed                bool              `json:"removed"`
-	Revisions              int64             `json:"revisions"`
+	Revisions              int               `json:"revisions"`
 	Shared                 bool              `json:"shared"`
 	SharedWith             []jsonSharedWith  `json:"shared_with"`
 	Size                   int64             `json:"size"`
@@ -47,56 +45,20 @@ type jsonListResponseItemV2 struct {
 	Transient              bool              `json:"transient"`
 	Type                   ObjectType        `json:"type"`
 	VersionID              string            `json:"version_id"`
-	WatermarkVersion       int64             `json:"watermark_version"`
+	WatermarkVersion       int               `json:"watermark_version"`
 }
 
-func (item *jsonListResponseItemV2) validate() error {
-	if !item.ContentType.isValid() {
-		return SynologyError(fmt.Sprintf("Invalid or unknown content type: %s", item.ContentType))
-	}
-	if !item.Type.isValid() {
-		return SynologyError(fmt.Sprintf("Invalid type: %s", item.Type))
-	}
-	for j := range item.SharedWith {
-		sharedWith := item.SharedWith[j]
-		if !sharedWith.Role.isValid() {
-			return SynologyError(fmt.Sprintf("Invalid role: %s", sharedWith.Role))
-		}
-		if !sharedWith.Type.isValid() {
-			return SynologyError(fmt.Sprintf("Invalid type: %s", sharedWith.Type))
-		}
-	}
-	return nil
+type jsonSharedWithMeResponseDataV2 struct {
+	Items []jsonSharedWithMeResponseItemV2 `json:"items"`
+	Total int64                            `json:"total"`
 }
 
-// jsonListResponseDataV2 represents the data section of a list response
-// containing items and total count
-type jsonListResponseDataV2 struct {
-	Items []jsonListResponseItemV2 `json:"items"`
-	Total int64                    `json:"total"`
-}
-
-func (d *jsonListResponseDataV2) validate() error {
-	for i := range d.Items {
-		if err := d.Items[i].validate(); err != nil {
-			return err
-		}
-	}
-	if d.Total < 0 {
-		return SynologyError(fmt.Sprintf("Invalid total count: %d", d.Total))
-	}
-	return nil
-}
-
-// jsonListResponseV2 represents the complete response from listing files or folders
-type jsonListResponseV2 struct {
+type jsonSharedWithMeResponseV2 struct {
 	synologyAPIResponse
-	Data jsonListResponseDataV2 `json:"data"`
+	Data jsonSharedWithMeResponseDataV2 `json:"data"`
 }
 
-// ListResponseItem represents a file or folder item in a Synology Drive listing
-// with proper Go types for improved usability
-type ListResponseItem struct {
+type SharedWithMeResponseItem struct {
 	AccessTime             time.Time
 	AdvShared              bool
 	AppProperties          AppProperties
@@ -125,7 +87,7 @@ type ListResponseItem struct {
 	PermanentLink          string
 	Properties             Properties
 	Removed                bool
-	Revisions              int64
+	Revisions              int
 	Shared                 bool
 	SharedWith             []SharedWith
 	Size                   int64
@@ -136,14 +98,11 @@ type ListResponseItem struct {
 	Transient              bool
 	Type                   ObjectType
 	VersionID              string
-	WatermarkVersion       int64
+	WatermarkVersion       int
 }
 
-// toListResponseItem converts the JSON representation to the Go friendly representation
-// with proper types such as time.Time instead of Unix timestamps
-func (j *jsonListResponseItemV2) toListResponseItem() *ListResponseItem {
-	return &ListResponseItem{
-		// Convert Unix timestamp (seconds since epoch) to time.Time
+func (j *jsonSharedWithMeResponseItemV2) toSharedWithMeResponseItem() *SharedWithMeResponseItem {
+	return &SharedWithMeResponseItem{
 		AccessTime:             j.AccessTime.toTime(),
 		AdvShared:              j.AdvShared,
 		AppProperties:          j.AppProperties.toAppProperties(),
@@ -187,26 +146,16 @@ func (j *jsonListResponseItemV2) toListResponseItem() *ListResponseItem {
 	}
 }
 
-// ListResponse represents the complete response from listing files or folders
-// with proper Go types for improved usability
-type ListResponse struct {
-	Items []*ListResponseItem
+type SharedWithMeResponse struct {
+	Items []*SharedWithMeResponseItem
 	Total int64
-	raw   []byte // Stores the original raw JSON response
+	raw   []byte
 }
 
-// List retrieves the contents of a folder on Synology Drive.
-// Parameters:
-//   - fileID: The identifier of the folder to list (e.g., MyDrive constant for the root folder)
-//
-// Returns:
-//   - *ListResponse: Data structure containing the list of items and total count
-//   - error: HttpError if there was a network or request error
-//   - error: SynologyError if the listing failed or the response was invalid
-func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
+func (s *SynologySession) SharedWithMe() (*SharedWithMeResponse, error) {
 	req := apiRequest{
 		api:     APINameSynologyDriveFiles,
-		method:  "list",
+		method:  "shared_with_me",
 		version: "2",
 		params: map[string]string{
 			"filter":         "{}",
@@ -214,29 +163,23 @@ func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 			"sort_by":        "owner",
 			"offset":         "0",
 			"limit":          "1000",
-			"path":           fileID.toAPIParam(),
 		},
 	}
 
-	var jsonResponse jsonListResponseV2
-	body, err := s.callAPI(req, &jsonResponse, "List folder")
+	var jsonResponse jsonSharedWithMeResponseV2
+	body, err := s.callAPI(req, &jsonResponse, "shared-with-me")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list folder %s: %w", fileID, err)
+		return nil, fmt.Errorf("failed to get shared-with-me contents: %w", err)
 	}
 
-	if err := jsonResponse.Data.validate(); err != nil {
-		return nil, fmt.Errorf("failed to validate list response for folder %s: %w", fileID, err)
-	}
-
-	resp := ListResponse{
-		Items: make([]*ListResponseItem, len(jsonResponse.Data.Items)),
+	resp := SharedWithMeResponse{
 		Total: jsonResponse.Data.Total,
+		Items: make([]*SharedWithMeResponseItem, len(jsonResponse.Data.Items)),
 		raw:   body,
 	}
 
-	// Convert jsonListResponseItemV2 to ListResponseItem using the conversion method
 	for i, item := range jsonResponse.Data.Items {
-		resp.Items[i] = item.toListResponseItem()
+		resp.Items[i] = item.toSharedWithMeResponseItem()
 	}
 
 	return &resp, nil
