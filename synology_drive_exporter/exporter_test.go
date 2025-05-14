@@ -44,9 +44,10 @@ func (m *MockFileSystem) CreateFile(filename string, data []byte, dirPerm os.Fil
 }
 
 type MockSynologySession struct {
-	ListFunc       func(rootDirID synd.FileID) (*synd.ListResponse, error)
-	ExportFunc     func(fileID synd.FileID) (*synd.ExportResponse, error)
-	TeamFolderFunc func() (*synd.TeamFolderResponse, error)
+	ListFunc         func(rootDirID synd.FileID) (*synd.ListResponse, error)
+	ExportFunc       func(fileID synd.FileID) (*synd.ExportResponse, error)
+	TeamFolderFunc   func() (*synd.TeamFolderResponse, error)
+	SharedWithMeFunc func() (*synd.SharedWithMeResponse, error)
 }
 
 func (m *MockSynologySession) List(rootDirID synd.FileID) (*synd.ListResponse, error) {
@@ -70,6 +71,13 @@ func (m *MockSynologySession) TeamFolder() (*synd.TeamFolderResponse, error) {
 	return &synd.TeamFolderResponse{}, nil
 }
 
+func (m *MockSynologySession) SharedWithMe() (*synd.SharedWithMeResponse, error) {
+	if m.SharedWithMeFunc != nil {
+		return m.SharedWithMeFunc()
+	}
+	return &synd.SharedWithMeResponse{}, nil
+}
+
 func TestExporterExportMyDrive(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -90,7 +98,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		{
 			name: "Normal case: Export two files",
 			listResponse: &synd.ListResponse{
-				Items: []*synd.ListResponseItem{
+				Items: []*synd.ResponseItem{
 					{
 						Type:        synd.ObjectTypeFile,
 						FileID:      "file1",
@@ -112,7 +120,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		{
 			name: "Skip files that are not export targets",
 			listResponse: &synd.ListResponse{
-				Items: []*synd.ListResponseItem{
+				Items: []*synd.ResponseItem{
 					{
 						Type:        synd.ObjectTypeFile,
 						FileID:      "file1",
@@ -138,7 +146,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		{
 			name: "Error during export",
 			listResponse: &synd.ListResponse{
-				Items: []*synd.ListResponseItem{
+				Items: []*synd.ResponseItem{
 					{
 						Type:        synd.ObjectTypeFile,
 						FileID:      "file1",
@@ -154,7 +162,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		{
 			name: "Error during file operation",
 			listResponse: &synd.ListResponse{
-				Items: []*synd.ListResponseItem{
+				Items: []*synd.ResponseItem{
 					{
 						Type:        synd.ObjectTypeFile,
 						FileID:      "file1",
@@ -171,7 +179,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		{
 			name: "Directory traversal: One level deep",
 			listResponse: &synd.ListResponse{
-				Items: []*synd.ListResponseItem{
+				Items: []*synd.ResponseItem{
 					{
 						Type:        synd.ObjectTypeFile,
 						FileID:      "file1",
@@ -187,7 +195,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 			},
 			directoryResponses: map[synd.FileID]*synd.ListResponse{
 				"dir1": {
-					Items: []*synd.ListResponseItem{
+					Items: []*synd.ResponseItem{
 						{
 							Type:        synd.ObjectTypeFile,
 							FileID:      "file2",
@@ -206,7 +214,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		{
 			name: "Directory traversal: Multiple levels deep",
 			listResponse: &synd.ListResponse{
-				Items: []*synd.ListResponseItem{
+				Items: []*synd.ResponseItem{
 					{
 						Type:        synd.ObjectTypeDirectory,
 						FileID:      "dir1",
@@ -217,7 +225,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 			},
 			directoryResponses: map[synd.FileID]*synd.ListResponse{
 				"dir1": {
-					Items: []*synd.ListResponseItem{
+					Items: []*synd.ResponseItem{
 						{
 							Type:        synd.ObjectTypeDirectory,
 							FileID:      "dir2",
@@ -227,7 +235,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 					},
 				},
 				"dir2": {
-					Items: []*synd.ListResponseItem{
+					Items: []*synd.ResponseItem{
 						{
 							Type:        synd.ObjectTypeFile,
 							FileID:      "file1",
@@ -245,7 +253,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		{
 			name: "Directory traversal: Error in subdirectory should not stop processing",
 			listResponse: &synd.ListResponse{
-				Items: []*synd.ListResponseItem{
+				Items: []*synd.ResponseItem{
 					{
 						Type:        synd.ObjectTypeFile,
 						FileID:      "file1",
@@ -267,7 +275,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 			},
 			directoryResponses: map[synd.FileID]*synd.ListResponse{
 				"dir2": {
-					Items: []*synd.ListResponseItem{
+					Items: []*synd.ResponseItem{
 						{
 							Type:        synd.ObjectTypeFile,
 							FileID:      "file2",
@@ -290,7 +298,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		{
 			name: "Mixed files and directories at multiple levels",
 			listResponse: &synd.ListResponse{
-				Items: []*synd.ListResponseItem{
+				Items: []*synd.ResponseItem{
 					{
 						Type:        synd.ObjectTypeFile,
 						FileID:      "file1",
@@ -311,7 +319,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 			},
 			directoryResponses: map[synd.FileID]*synd.ListResponse{
 				"dir1": {
-					Items: []*synd.ListResponseItem{
+					Items: []*synd.ResponseItem{
 						{
 							Type:        synd.ObjectTypeFile,
 							FileID:      "file3",
@@ -326,7 +334,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 					},
 				},
 				"dir2": {
-					Items: []*synd.ListResponseItem{
+					Items: []*synd.ResponseItem{
 						{
 							Type:        synd.ObjectTypeFile,
 							FileID:      "file4",
@@ -353,7 +361,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		{
 			name: "File paths with multiple leading slashes",
 			listResponse: &synd.ListResponse{
-				Items: []*synd.ListResponseItem{
+				Items: []*synd.ResponseItem{
 					{
 						Type:        synd.ObjectTypeFile,
 						FileID:      "file1",
@@ -409,7 +417,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 					}
 
 					// Default empty response
-					return &synd.ListResponse{Items: []*synd.ListResponseItem{}}, nil
+					return &synd.ListResponse{Items: []*synd.ResponseItem{}}, nil
 				},
 				ExportFunc: func(fileID synd.FileID) (*synd.ExportResponse, error) {
 					if tt.exportError != nil {
@@ -496,7 +504,8 @@ func TestExporterExportMyDrive(t *testing.T) {
 }
 
 // validateExportedFile is a helper function to verify that a file was properly exported
-func validateExportedFile(t *testing.T, item *synd.ListResponseItem, mockFS *MockFileSystem, exportErrors map[synd.FileID]error, fileOpError error) {
+// validateExportedFile is a helper function to verify that a file was properly exported
+func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFileSystem, exportErrors map[synd.FileID]error, fileOpError error) {
 	exportName := synd.GetExportFileName(item.DisplayPath)
 	if exportName == "" {
 		return
