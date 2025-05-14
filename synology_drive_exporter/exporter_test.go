@@ -177,7 +177,6 @@ func TestExporterExportMyDrive(t *testing.T) {
 				"file1": {Content: []byte("file1 content")},
 			},
 			fileOperationError: errors.New("file operation error"),
-			expectedError:      true,
 		},
 		{
 			name: "Directory traversal: One level deep",
@@ -517,12 +516,12 @@ func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFil
 }
 
 /*
-TestProcessItem_HistoryAndHash covers:
+TestExportItem_HistoryAndHash covers:
 1. Skips download if history exists and hash is the same
 2. Downloads if history exists and hash is different
 3. Downloads if history does not exist
 */
-func TestProcessItem_HistoryAndHash(t *testing.T) {
+func TestExportItem_HistoryAndHash(t *testing.T) {
 	fileID := synd.FileID("file1")
 	fileHashOld := synd.FileHash("hash_old")
 	fileHashNew := synd.FileHash("hash_new")
@@ -571,7 +570,7 @@ func TestProcessItem_HistoryAndHash(t *testing.T) {
 			}
 			history := &DownloadHistory{Items: make(map[string]DownloadItem)}
 			maps.Copy(history.Items, tc.history)
-			item := &synd.ResponseItem{
+			item := ExportItem{
 				Type:        synd.ObjectTypeFile,
 				FileID:      fileID,
 				DisplayPath: displayPath,

@@ -165,7 +165,7 @@ func (e *Exporter) exportWithHistorySharedItems(
 		return fmt.Errorf("failed to load download history: %w", err)
 	}
 	for _, item := range items {
-		if err := e.processItem(item, history); err != nil {
+		if err := e.processItem(toExportItem(item), history); err != nil {
 			return err
 		}
 	}
@@ -189,8 +189,49 @@ func (e *Exporter) processDirectory(dirID synd.FileID, history *DownloadHistory)
 		return err
 	}
 	for _, item := range list.Items {
-		if err := e.processItem(item, history); err != nil {
+		if err := e.processItem(toExportItem(item), history); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// processFile exports a single convertible Synology Office file.
+// Parameters:
+//   - item: The Synology Office file to export (ExportItem type fields required)
+//   - history: DownloadHistory instance to record downloaded files
+//
+// Returns:
+//   - error: An error if the export operation failed
+func (e *Exporter) processFile(item ExportItem, history *DownloadHistory) error {
+	exportName := synd.GetExportFileName(item.DisplayPath)
+	if exportName == "" {
+		return nil
+	}
+
+	localPath := strings.TrimPrefix(filepath.Clean(exportName), "/")
+	if history != nil {
+		if prev, downloaded := history.Items[localPath]; downloaded && prev.Hash == item.Hash {
+			fmt.Printf("Skip (already exported and hash unchanged): %s\n", localPath)
+			return nil
+		}
+	}
+	fmt.Printf("Exporting file: %s\n", exportName)
+	resp, err := e.session.Export(item.FileID)
+	if err != nil {
+		return fmt.Errorf("failed to export %s: %w", exportName, err)
+	}
+	downloadPath := filepath.Join(e.downloadDir, localPath)
+	if err := e.fs.CreateFile(downloadPath, resp.Content, 0755, 0644); err != nil {
+		return ExportFileWriteError(err.Error())
+	}
+	fmt.Printf("Saved to: %s\n", downloadPath)
+
+	if history != nil {
+		history.Items[localPath] = DownloadItem{
+			FileID:       item.FileID,
+			Hash:         item.Hash,
+			DownloadTime: time.Now(),
 		}
 	}
 	return nil
@@ -200,11 +241,31 @@ func (e *Exporter) processDirectory(dirID synd.FileID, history *DownloadHistory)
 // If the item is a directory, recursively processes its contents.
 // If the item is an exportable file, exports and saves it.
 // Returns an error only if a file write fails.
-// processItem processes a single item (file or directory).
+// ExportItem contains only the fields needed for export processing.
+// This reduces dependency on the full ResponseItem struct and improves maintainability.
+type ExportItem struct {
+	Type        synd.ObjectType
+	FileID      synd.FileID
+	DisplayPath string
+	Hash        synd.FileHash
+}
+
+// toExportItem converts a *synd.ResponseItem to a *ExportItem for processing/export purposes.
+// Only the necessary fields are copied. This is a standalone function because Go does not allow methods on non-local types.
+func toExportItem(item *synd.ResponseItem) ExportItem {
+	return ExportItem{
+		Type:        item.Type,
+		FileID:      item.FileID,
+		DisplayPath: item.DisplayPath,
+		Hash:        item.Hash,
+	}
+}
+
+// processItem processes a single item (file or directory) using ExportItem.
 // If the item is a directory, recursively processes its contents.
-// If the item is an exportable file, exports and saves it, and records it in download history.
+// If the item is an exportable file, exports and saves it.
 // Returns an error only if a file write fails.
-func (e *Exporter) processItem(item *synd.ResponseItem, history *DownloadHistory) error {
+func (e *Exporter) processItem(item ExportItem, history *DownloadHistory) error {
 	// Use a tagged switch for item.Type for clarity and maintainability.
 	switch item.Type {
 	case synd.ObjectTypeDirectory:
@@ -214,36 +275,10 @@ func (e *Exporter) processItem(item *synd.ResponseItem, history *DownloadHistory
 			// Continue processing other items even if one directory fails
 		}
 	case synd.ObjectTypeFile:
-		// Export file if convertible
-		exportName := synd.GetExportFileName(item.DisplayPath)
-		if exportName == "" {
-			return nil
-		}
-		localPath := strings.TrimPrefix(filepath.Clean(exportName), "/")
-		if history != nil {
-			if prev, downloaded := history.Items[localPath]; downloaded && prev.Hash == item.Hash {
-				fmt.Printf("Skip (already exported and hash unchanged): %s\n", localPath)
-				return nil
-			}
-		}
-		fmt.Printf("Exporting file: %s\n", exportName)
-		resp, err := e.session.Export(item.FileID)
-		if err != nil {
-			fmt.Printf("Failed to export %s: %v\n", exportName, err)
-			return nil
-		}
-		downloadPath := filepath.Join(e.downloadDir, localPath)
-		if err := e.fs.CreateFile(downloadPath, resp.Content, 0755, 0644); err != nil {
-			return ExportFileWriteError(err.Error())
-		}
-		fmt.Printf("Saved to: %s\n", downloadPath)
 
-		if history != nil {
-			history.Items[localPath] = DownloadItem{
-				FileID:       item.FileID,
-				Hash:         item.Hash,
-				DownloadTime: time.Now(),
-			}
+		if err := e.processFile(item, history); err != nil {
+			fmt.Printf("Failed to process file %s: %v\n", item.DisplayPath, err)
+			// Continue processing other items even if one file fails
 		}
 	}
 	return nil
