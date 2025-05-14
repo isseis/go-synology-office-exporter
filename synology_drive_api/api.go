@@ -101,16 +101,6 @@ const ObjectTypeFile = ObjectType("file")
 // ObjectTypeDirectory represents a directory object in Synology Drive
 const ObjectTypeDirectory = ObjectType("dir")
 
-// isValid checks if the FileType is a valid supported type
-func (o ObjectType) isValid() bool {
-	switch o {
-	case ObjectTypeFile, ObjectTypeDirectory:
-		return true
-	default:
-		return false
-	}
-}
-
 // contentType represents the type of content in a Synology Drive file
 type contentType string
 
@@ -163,16 +153,6 @@ const RoleEditor = Role("editor")
 // RoleManager represents a user who can manage files and permissions
 const RoleManager = Role("organizer")
 
-// isValid checks if the Role is a valid supported role
-func (r Role) isValid() bool {
-	switch r {
-	case RoleCommenter, RolePreviewer, RolePreviewCommenter, RoleViewer, RoleEditor, RoleManager:
-		return true
-	default:
-		return false
-	}
-}
-
 // SharedEntity represents the type of entity a file can be shared with
 type SharedEntity string
 
@@ -181,16 +161,6 @@ const SharedTargetUser = SharedEntity("user")
 
 // SharedTargetGroup represents sharing with a group of users
 const SharedTargetGroup = SharedEntity("group")
-
-// isValid checks if the SharedEntity is a valid supported entity type
-func (s SharedEntity) isValid() bool {
-	switch s {
-	case SharedTargetUser, SharedTargetGroup:
-		return true
-	default:
-		return false
-	}
-}
 
 // jsonSharedWith represents a user or group that a file or folder is shared with
 // in the raw JSON API response
@@ -348,6 +318,151 @@ type jsonTimeStamp int64
 // toTime converts a jsonTimeStamp to a time.Time
 func (j jsonTimeStamp) toTime() time.Time {
 	return time.Unix(int64(j), 0)
+}
+
+// jsonResponseItem represents a file or folder item in a Synology Drive listing or shared-with-me API response
+// in the raw JSON API response
+// This type unifies jsonListResponseItemV2 and jsonSharedWithMeResponseItemV2
+type jsonResponseItem struct {
+	Type                   ObjectType        `json:"type"`
+	FileID                 FileID            `json:"file_id"`
+	DisplayPath            string            `json:"display_path"`
+	Name                   string            `json:"name"`
+	ParentID               FileID            `json:"parent_id"`
+	Path                   string            `json:"path"`
+	AccessTime             jsonTimeStamp     `json:"access_time"`
+	AdvShared              bool              `json:"adv_shared"`
+	AppProperties          jsonAppProperties `json:"app_properties"`
+	Capabilities           jsonCapabilities  `json:"capabilities"`
+	ChangeID               int64             `json:"change_id"`
+	ChangeTime             jsonTimeStamp     `json:"change_time"`
+	ContentSnippet         string            `json:"content_snippet"`
+	ContentType            contentType       `json:"content_type"`
+	CreatedTime            jsonTimeStamp     `json:"created_time"`
+	DisableDownload        bool              `json:"disable_download"`
+	DsmPath                string            `json:"dsm_path"`
+	EnableWatermark        bool              `json:"enable_watermark"`
+	Encrypted              bool              `json:"encrypted"`
+	ForceWatermarkDownload bool              `json:"force_watermark_download"`
+	Hash                   string            `json:"hash"`
+	ImageMetadata          jsonImageMetadata `json:"image_metadata"`
+	Labels                 []string          `json:"labels"`
+	MaxID                  int64             `json:"max_id"`
+	ModifiedTime           jsonTimeStamp     `json:"modified_time"`
+	Owner                  jsonOwner         `json:"owner"`
+	PermanentLink          string            `json:"permanent_link"`
+	Properties             jsonProperties    `json:"properties"`
+	Removed                bool              `json:"removed"`
+	Revisions              int64             `json:"revisions"`
+	Shared                 bool              `json:"shared"`
+	SharedWith             []jsonSharedWith  `json:"shared_with"`
+	Size                   int64             `json:"size"`
+	Starred                bool              `json:"starred"`
+	SupportRemote          bool              `json:"support_remote"`
+	SyncID                 int64             `json:"sync_id"`
+	SyncToDevice           bool              `json:"sync_to_device"`
+	Transient              bool              `json:"transient"`
+	VersionID              string            `json:"version_id"`
+	WatermarkVersion       int64             `json:"watermark_version"`
+}
+
+// ResponseItem represents a file or folder item in a Synology Drive listing or shared-with-me API response
+// with proper Go types for improved usability. This type unifies ListResponseItem and SharedWithMeResponseItem.
+// ResponseItem represents a file or folder item in a Synology Drive listing or shared-with-me API response
+// with proper Go types for improved usability.
+// This type unifies ListResponseItem and SharedWithMeResponseItem
+type ResponseItem struct {
+	Type        ObjectType
+	FileID      FileID
+	DisplayPath string
+	Name        string
+	ParentID    FileID
+	Path        string
+
+	AccessTime   time.Time
+	ChangeTime   time.Time
+	CreatedTime  time.Time
+	ModifiedTime time.Time
+
+	AdvShared              bool
+	AppProperties          AppProperties
+	Capabilities           Capabilities
+	ChangeID               int64
+	ContentSnippet         string
+	ContentType            contentType
+	DisableDownload        bool
+	DsmPath                string
+	EnableWatermark        bool
+	Encrypted              bool
+	ForceWatermarkDownload bool
+	Hash                   string
+	ImageMetadata          ImageMetadata
+	Labels                 []string
+	MaxID                  int64
+	Owner                  Owner
+	PermanentLink          string
+	Properties             Properties
+	Removed                bool
+	Revisions              int64
+	Shared                 bool
+	SharedWith             []SharedWith
+	Size                   int64
+	Starred                bool
+	SupportRemote          bool
+	SyncID                 int64
+	SyncToDevice           bool
+	Transient              bool
+	VersionID              string
+	WatermarkVersion       int64
+}
+
+// toResponseItem converts the JSON representation to the Go friendly representation
+// with proper types such as time.Time instead of Unix timestamps
+func (j *jsonResponseItem) toResponseItem() *ResponseItem {
+	return &ResponseItem{
+		Type:        j.Type,
+		FileID:      j.FileID,
+		DisplayPath: j.DisplayPath,
+		Name:        j.Name,
+		ParentID:    j.ParentID,
+		Path:        j.Path,
+
+		AccessTime:   j.AccessTime.toTime(),
+		ChangeTime:   j.ChangeTime.toTime(),
+		CreatedTime:  j.CreatedTime.toTime(),
+		ModifiedTime: j.ModifiedTime.toTime(),
+
+		AdvShared:              j.AdvShared,
+		AppProperties:          j.AppProperties.toAppProperties(),
+		Capabilities:           j.Capabilities.toCapabilities(),
+		ChangeID:               j.ChangeID,
+		ContentSnippet:         j.ContentSnippet,
+		ContentType:            j.ContentType,
+		DisableDownload:        j.DisableDownload,
+		DsmPath:                j.DsmPath,
+		EnableWatermark:        j.EnableWatermark,
+		Encrypted:              j.Encrypted,
+		ForceWatermarkDownload: j.ForceWatermarkDownload,
+		Hash:                   j.Hash,
+		ImageMetadata:          j.ImageMetadata.toImageMetadata(),
+		Labels:                 j.Labels,
+		MaxID:                  j.MaxID,
+		Owner:                  j.Owner.toOwner(),
+		PermanentLink:          j.PermanentLink,
+		Properties:             j.Properties.toProperties(),
+		Removed:                j.Removed,
+		Revisions:              j.Revisions,
+		Shared:                 j.Shared,
+		SharedWith:             convertSharedWithList(j.SharedWith),
+		Size:                   j.Size,
+		Starred:                j.Starred,
+		SupportRemote:          j.SupportRemote,
+		SyncID:                 j.SyncID,
+		SyncToDevice:           j.SyncToDevice,
+		Transient:              j.Transient,
+		VersionID:              j.VersionID,
+		WatermarkVersion:       j.WatermarkVersion,
+	}
 }
 
 // officeExtensionMap defines the mapping between Synology Office file extensions

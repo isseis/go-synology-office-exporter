@@ -92,6 +92,10 @@ func main() {
 		exitCode = 1
 		log.Printf("Export failed: %v", err)
 	}
+	if err := exporter.ExportSharedWithMe(); err != nil {
+		exitCode = 1
+		log.Printf("Export failed: %v", err)
+	}
 
 	log.Println("Export complete")
 	os.Exit(exitCode)

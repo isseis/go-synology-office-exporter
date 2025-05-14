@@ -48,6 +48,9 @@ type SessionInterface interface {
 
 	// TeamFolder retrieves a list of team folders from the Synology Drive API.
 	TeamFolder() (*synd.TeamFolderResponse, error)
+
+	// SharedWithMe retrieves a list of files shared with the user.
+	SharedWithMe() (*synd.SharedWithMeResponse, error)
 }
 
 // Exporter provides functionality to export files from Synology Drive.
@@ -91,6 +94,7 @@ func (e *Exporter) ExportMyDrive() error {
 	return e.processDirectory(synd.MyDrive)
 }
 
+// ExportTeamFolder exports all convertible files from the team folder.
 func (e *Exporter) ExportTeamFolder() error {
 	teamFolder, err := e.session.TeamFolder()
 	if err != nil {
@@ -99,6 +103,22 @@ func (e *Exporter) ExportTeamFolder() error {
 
 	for _, item := range teamFolder.Items {
 		if err := e.processDirectory(item.FileID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ExportSharedWithMe exports all convertible files and directories shared with the user.
+// It processes both files and directories in the shared-with-me list.
+func (e *Exporter) ExportSharedWithMe() error {
+	sharedWithMe, err := e.session.SharedWithMe()
+	if err != nil {
+		return err
+	}
+
+	for _, item := range sharedWithMe.Items {
+		if err := e.processItem(item); err != nil {
 			return err
 		}
 	}
@@ -117,43 +137,48 @@ func (e *Exporter) processDirectory(dirID synd.FileID) error {
 	if err != nil {
 		return err
 	}
-
 	for _, item := range list.Items {
-		if item.Type == synd.ObjectTypeDirectory {
-			// If it's a directory, recursively process it
-			if err := e.processDirectory(item.FileID); err != nil {
-				fmt.Printf("Failed to process directory %s: %v\n", item.DisplayPath, err)
-				// Continue processing other items even if one directory fails
-			}
-		} else if item.Type == synd.ObjectTypeFile {
-			// If it's a file, check if it's exportable and export it
-			exportName := synd.GetExportFileName(item.DisplayPath)
-			if exportName == "" {
-				continue
-			}
-			fmt.Printf("Exporting file: %s\n", exportName)
-
-			// Export the file
-			resp, err := e.session.Export(item.FileID)
-			if err != nil {
-				fmt.Printf("Failed to export %s: %v\n", exportName, err)
-				continue
-			}
-
-			// Save the file locally with the original directory structure
-			localPath := filepath.Clean(exportName)
-			for len(localPath) > 0 && localPath[0] == '/' {
-				localPath = localPath[1:]
-			}
-
-			downloadPath := filepath.Join(e.downloadDir, localPath)
-
-			// Create parent directories if they don't exist
-			if err := e.fs.CreateFile(downloadPath, resp.Content, 0755, 0644); err != nil {
-				return ExportFileWriteError(err.Error())
-			}
-			fmt.Printf("Saved to: %s\n", downloadPath)
+		if err := e.processItem(item); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// processItem processes a single item (file or directory).
+// If the item is a directory, recursively processes its contents.
+// If the item is an exportable file, exports and saves it.
+// Returns an error only if a file write fails.
+func (e *Exporter) processItem(item *synd.ResponseItem) error {
+	// Use a tagged switch for item.Type for clarity and maintainability.
+	switch item.Type {
+	case synd.ObjectTypeDirectory:
+		// Recursively process directory
+		if err := e.processDirectory(item.FileID); err != nil {
+			fmt.Printf("Failed to process directory %s: %v\n", item.DisplayPath, err)
+			// Continue processing other items even if one directory fails
+		}
+	case synd.ObjectTypeFile:
+		// Export file if convertible
+		exportName := synd.GetExportFileName(item.DisplayPath)
+		if exportName == "" {
+			return nil
+		}
+		fmt.Printf("Exporting file: %s\n", exportName)
+		resp, err := e.session.Export(item.FileID)
+		if err != nil {
+			fmt.Printf("Failed to export %s: %v\n", exportName, err)
+			return nil
+		}
+		localPath := filepath.Clean(exportName)
+		for len(localPath) > 0 && localPath[0] == '/' {
+			localPath = localPath[1:]
+		}
+		downloadPath := filepath.Join(e.downloadDir, localPath)
+		if err := e.fs.CreateFile(downloadPath, resp.Content, 0755, 0644); err != nil {
+			return ExportFileWriteError(err.Error())
+		}
+		fmt.Printf("Saved to: %s\n", downloadPath)
 	}
 	return nil
 }
