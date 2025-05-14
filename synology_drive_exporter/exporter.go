@@ -88,7 +88,7 @@ func NewExporterWithCustomDependencies(session SessionInterface, downloadDir str
 // ExportMyDrive exports all convertible files from the user's Synology Drive and saves them to the download directory.
 // Download history is used to avoid duplicate downloads.
 func (e *Exporter) ExportMyDrive() error {
-	return e.exportWithHistory(
+	return e.ExportRootsWithHistory(
 		[]synd.FileID{synd.MyDrive},
 		"mydrive_history.json",
 	)
@@ -105,7 +105,7 @@ func (e *Exporter) ExportTeamFolder() error {
 	for _, item := range teamFolder.Items {
 		rootIDs = append(rootIDs, item.FileID)
 	}
-	return e.exportWithHistory(
+	return e.ExportRootsWithHistory(
 		rootIDs,
 		"team_folder_history.json",
 	)
@@ -118,42 +118,18 @@ func (e *Exporter) ExportSharedWithMe() error {
 	if err != nil {
 		return err
 	}
-	return e.exportWithHistorySharedItems(
-		sharedWithMe.Items,
-		"shared_with_me_history.json",
-	)
+	var exportItems []ExportItem
+	for _, item := range sharedWithMe.Items {
+		exportItems = append(exportItems, toExportItem(item))
+	}
+	return e.exportItemsWithHistory(exportItems, "shared_with_me_history.json")
 }
 
-// exportWithHistory is a helper function to export multiple root directories with download history management.
-// It handles DownloadHistory creation, loading, saving, and calls processDirectory for each root.
-// This reduces code duplication across different export entrypoints.
-func (e *Exporter) exportWithHistory(
-	rootIDs []synd.FileID,
-	historyFile string,
-) error {
-	historyPath := filepath.Join(e.downloadDir, historyFile)
-	history, err := NewDownloadHistory(historyPath)
-	if err != nil {
-		return fmt.Errorf("failed to create download history: %w", err)
-	}
-	if err := history.Load(); err != nil {
-		return fmt.Errorf("failed to load download history: %w", err)
-	}
-	for _, rootID := range rootIDs {
-		if err := e.processDirectory(rootID, history); err != nil {
-			return err
-		}
-	}
-	if err := history.Save(); err != nil {
-		return fmt.Errorf("failed to save download history: %w", err)
-	}
-	return nil
-}
-
-// exportWithHistorySharedItems is a helper for exporting a slice of ResponseItem with download history.
-// Used for ExportSharedWithMe.
-func (e *Exporter) exportWithHistorySharedItems(
-	items []*synd.ResponseItem,
+// exportItemsWithHistory is a common internal helper for exporting a slice of ExportItem with download history management.
+// It handles DownloadHistory creation, loading, saving, and calls processItem for each item.
+// This function is used by both ExportRootsWithHistory and ExportRootsWithHistorySharedItems to avoid code duplication.
+func (e *Exporter) exportItemsWithHistory(
+	items []ExportItem,
 	historyFile string,
 ) error {
 	historyPath := filepath.Join(e.downloadDir, historyFile)
@@ -165,7 +141,7 @@ func (e *Exporter) exportWithHistorySharedItems(
 		return fmt.Errorf("failed to load download history: %w", err)
 	}
 	for _, item := range items {
-		if err := e.processItem(toExportItem(item), history); err != nil {
+		if err := e.processItem(item, history, true); err != nil {
 			return err
 		}
 	}
@@ -175,21 +151,42 @@ func (e *Exporter) exportWithHistorySharedItems(
 	return nil
 }
 
+// ExportRootsWithHistory is a wrapper for exporting multiple root directories with download history management.
+// It converts rootIDs to ExportItem and delegates to exportItemsWithHistory.
+func (e *Exporter) ExportRootsWithHistory(
+	rootIDs []synd.FileID,
+	historyFile string,
+) error {
+	var exportItems []ExportItem
+	for _, rootID := range rootIDs {
+		exportItems = append(exportItems, ExportItem{
+			Type:        synd.ObjectTypeDirectory,
+			FileID:      rootID,
+			DisplayPath: "",
+			Hash:        "",
+		})
+	}
+	return e.exportItemsWithHistory(exportItems, historyFile)
+}
+
 // processDirectory recursively processes a directory and its subdirectories,
 // exporting all convertible Synology Office files.
 // Parameters:
-//   - dirID: The identifier of the directory to process
+//   - item: The ExportItem representing the directory to process
 //   - history: DownloadHistory instance to record downloaded files
 //
 // Returns:
 //   - error: An error if the export operation failed
-func (e *Exporter) processDirectory(dirID synd.FileID, history *DownloadHistory) error {
-	list, err := e.session.List(dirID)
+//
+// processDirectory recursively processes a directory and its subdirectories.
+// If topLevel is true, errors are returned; otherwise, errors are logged and skipped.
+func (e *Exporter) processDirectory(item ExportItem, history *DownloadHistory, topLevel bool) error {
+	list, err := e.session.List(item.FileID)
 	if err != nil {
 		return err
 	}
-	for _, item := range list.Items {
-		if err := e.processItem(toExportItem(item), history); err != nil {
+	for _, child := range list.Items {
+		if err := e.processItem(toExportItem(child), history, false); err != nil {
 			return err
 		}
 	}
@@ -265,17 +262,21 @@ func toExportItem(item *synd.ResponseItem) ExportItem {
 // If the item is a directory, recursively processes its contents.
 // If the item is an exportable file, exports and saves it.
 // Returns an error only if a file write fails.
-func (e *Exporter) processItem(item ExportItem, history *DownloadHistory) error {
-	// Use a tagged switch for item.Type for clarity and maintainability.
+// processItem processes a single item (file or directory) using ExportItem.
+// If topLevel is true, directory errors are returned; otherwise, errors are logged and skipped.
+func (e *Exporter) processItem(item ExportItem, history *DownloadHistory, topLevel bool) error {
 	switch item.Type {
 	case synd.ObjectTypeDirectory:
-		// Recursively process directory
-		if err := e.processDirectory(item.FileID, history); err != nil {
-			fmt.Printf("Failed to process directory %s: %v\n", item.DisplayPath, err)
-			// Continue processing other items even if one directory fails
+		if err := e.processDirectory(item, history, topLevel); err != nil {
+			if topLevel {
+				// Return error for top-level directory
+				return err
+			} else {
+				fmt.Printf("Failed to process directory %s: %v\n", item.DisplayPath, err)
+				// Continue processing other items even if one directory fails
+			}
 		}
 	case synd.ObjectTypeFile:
-
 		if err := e.processFile(item, history); err != nil {
 			fmt.Printf("Failed to process file %s: %v\n", item.DisplayPath, err)
 			// Continue processing other items even if one file fails

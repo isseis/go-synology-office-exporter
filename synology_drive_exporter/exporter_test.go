@@ -577,7 +577,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 				Hash:        tc.itemHash,
 			}
 			exporter := NewExporterWithCustomDependencies(session, "", mockFS)
-			err := exporter.processItem(item, history)
+			err := exporter.processItem(item, history, false)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
