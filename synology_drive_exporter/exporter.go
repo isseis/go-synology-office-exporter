@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
@@ -66,10 +67,10 @@ type Exporter struct {
 func NewExporter(username string, password string, base_url string, downloadDir string) (*Exporter, error) {
 	session, err := synd.NewSynologySession(username, password, base_url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create session: %v", err)
+		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 	if err = session.Login(); err != nil {
-		return nil, fmt.Errorf("failed to login: %v", err)
+		return nil, fmt.Errorf("failed to login: %w", err)
 	}
 	exporter := NewExporterWithCustomDependencies(session, downloadDir, &DefaultFileSystem{})
 	return exporter, nil
@@ -92,17 +93,17 @@ func NewExporterWithCustomDependencies(session SessionInterface, downloadDir str
 func (e *Exporter) ExportMyDrive() error {
 	history, err := NewDownloadHistory(filepath.Join(e.downloadDir, "mydrive_history.json"))
 	if err != nil {
-		return fmt.Errorf("failed to create download history: %v", err)
+		return fmt.Errorf("failed to create download history: %w", err)
 	}
 	if err := history.Load(); err != nil {
-		return fmt.Errorf("failed to load download history: %v", err)
+		return fmt.Errorf("failed to load download history: %w", err)
 	}
 
 	if err := e.processDirectory(synd.MyDrive, history); err != nil {
-		return fmt.Errorf("failed to export MyDrive: %v", err)
+		return fmt.Errorf("failed to export MyDrive: %w", err)
 	}
 	if err := history.Save(); err != nil {
-		return fmt.Errorf("failed to save download history: %v", err)
+		return fmt.Errorf("failed to save download history: %w", err)
 	}
 	return nil
 }
@@ -194,10 +195,7 @@ func (e *Exporter) processItem(item *synd.ResponseItem, history *DownloadHistory
 		if exportName == "" {
 			return nil
 		}
-		localPath := filepath.Clean(exportName)
-		for len(localPath) > 0 && localPath[0] == '/' {
-			localPath = localPath[1:]
-		}
+		localPath := strings.TrimPrefix(filepath.Clean(exportName), "/")
 		if history != nil {
 			if prev, downloaded := history.Items[localPath]; downloaded && prev.Hash == item.Hash {
 				fmt.Printf("Skip (already exported and hash unchanged): %s\n", localPath)

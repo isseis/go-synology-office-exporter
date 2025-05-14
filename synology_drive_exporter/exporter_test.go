@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"maps"
@@ -527,11 +528,7 @@ func TestProcessItem_HistoryAndHash(t *testing.T) {
 	fileHashNew := synd.FileHash("hash_new")
 	displayPath := "/doc/test1.odoc"
 	exportName := synd.GetExportFileName(displayPath)
-	cleanPath := filepath.Clean(exportName)
-	for len(cleanPath) > 0 && cleanPath[0] == '/' {
-		cleanPath = cleanPath[1:]
-	}
-
+	cleanPath := strings.TrimPrefix(filepath.Clean(exportName), "/")
 	cases := []struct {
 		name        string
 		history     map[string]DownloadItem
