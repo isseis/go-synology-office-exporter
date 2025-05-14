@@ -85,22 +85,64 @@ func NewExporterWithCustomDependencies(session SessionInterface, downloadDir str
 	}
 }
 
-// ExportMyDrive exports all convertible files from the user's Synology Drive
-// and saves them to the download directory.
-// ExportMyDrive exports all convertible files from the user's Synology Drive
-// and saves them to the download directory.
-// It records each downloaded file into history and saves the history at the end.
+// ExportMyDrive exports all convertible files from the user's Synology Drive and saves them to the download directory.
+// Download history is used to avoid duplicate downloads.
 func (e *Exporter) ExportMyDrive() error {
-	history, err := NewDownloadHistory(filepath.Join(e.downloadDir, "mydrive_history.json"))
+	return e.exportWithHistory(
+		[]synd.FileID{synd.MyDrive},
+		"mydrive_history.json",
+	)
+}
+
+// ExportTeamFolder exports all convertible files from all team folders.
+// Download history is used to avoid duplicate downloads.
+func (e *Exporter) ExportTeamFolder() error {
+	teamFolder, err := e.session.TeamFolder()
+	if err != nil {
+		return err
+	}
+	var rootIDs []synd.FileID
+	for _, item := range teamFolder.Items {
+		rootIDs = append(rootIDs, item.FileID)
+	}
+	return e.exportWithHistory(
+		rootIDs,
+		"team_folder_history.json",
+	)
+}
+
+// ExportSharedWithMe exports all convertible files and directories shared with the user.
+// Download history is used to avoid duplicate downloads.
+func (e *Exporter) ExportSharedWithMe() error {
+	sharedWithMe, err := e.session.SharedWithMe()
+	if err != nil {
+		return err
+	}
+	return e.exportWithHistorySharedItems(
+		sharedWithMe.Items,
+		"shared_with_me_history.json",
+	)
+}
+
+// exportWithHistory is a helper function to export multiple root directories with download history management.
+// It handles DownloadHistory creation, loading, saving, and calls processDirectory for each root.
+// This reduces code duplication across different export entrypoints.
+func (e *Exporter) exportWithHistory(
+	rootIDs []synd.FileID,
+	historyFile string,
+) error {
+	historyPath := filepath.Join(e.downloadDir, historyFile)
+	history, err := NewDownloadHistory(historyPath)
 	if err != nil {
 		return fmt.Errorf("failed to create download history: %w", err)
 	}
 	if err := history.Load(); err != nil {
 		return fmt.Errorf("failed to load download history: %w", err)
 	}
-
-	if err := e.processDirectory(synd.MyDrive, history); err != nil {
-		return fmt.Errorf("failed to export MyDrive: %w", err)
+	for _, rootID := range rootIDs {
+		if err := e.processDirectory(rootID, history); err != nil {
+			return err
+		}
 	}
 	if err := history.Save(); err != nil {
 		return fmt.Errorf("failed to save download history: %w", err)
@@ -108,49 +150,31 @@ func (e *Exporter) ExportMyDrive() error {
 	return nil
 }
 
-// ExportTeamFolder exports all convertible files from the team folder.
-// ExportTeamFolder exports all convertible files from the team folder.
-// Note: Download history is not used in this export.
-func (e *Exporter) ExportTeamFolder() error {
-	teamFolder, err := e.session.TeamFolder()
+// exportWithHistorySharedItems is a helper for exporting a slice of ResponseItem with download history.
+// Used for ExportSharedWithMe.
+func (e *Exporter) exportWithHistorySharedItems(
+	items []*synd.ResponseItem,
+	historyFile string,
+) error {
+	historyPath := filepath.Join(e.downloadDir, historyFile)
+	history, err := NewDownloadHistory(historyPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create download history: %w", err)
 	}
-
-	for _, item := range teamFolder.Items {
-		if err := e.processDirectory(item.FileID, nil); err != nil {
+	if err := history.Load(); err != nil {
+		return fmt.Errorf("failed to load download history: %w", err)
+	}
+	for _, item := range items {
+		if err := e.processItem(item, history); err != nil {
 			return err
 		}
+	}
+	if err := history.Save(); err != nil {
+		return fmt.Errorf("failed to save download history: %w", err)
 	}
 	return nil
 }
 
-// ExportSharedWithMe exports all convertible files and directories shared with the user.
-// It processes both files and directories in the shared-with-me list.
-// ExportSharedWithMe exports all convertible files and directories shared with the user.
-// Note: Download history is not used in this export.
-func (e *Exporter) ExportSharedWithMe() error {
-	sharedWithMe, err := e.session.SharedWithMe()
-	if err != nil {
-		return err
-	}
-
-	for _, item := range sharedWithMe.Items {
-		if err := e.processItem(item, nil); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// processDirectory recursively processes a directory and its subdirectories,
-// exporting all convertible Synology Office files.
-// Parameters:
-//   - dirID: The identifier of the directory to process
-//
-// Returns:
-//   - error: An error if the export operation failed
-//
 // processDirectory recursively processes a directory and its subdirectories,
 // exporting all convertible Synology Office files.
 // Parameters:
