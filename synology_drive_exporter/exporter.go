@@ -132,10 +132,6 @@ func (e *Exporter) ExportSharedWithMe() error {
 //
 // Returns:
 //   - error: An error if the export operation failed
-//
-// processDirectory recursively processes a directory and its subdirectories,
-// exporting all convertible Synology Office files.
-// Calls processItem for each item in the directory.
 func (e *Exporter) processDirectory(dirID synd.FileID) error {
 	list, err := e.session.List(dirID)
 	if err != nil {
@@ -150,10 +146,6 @@ func (e *Exporter) processDirectory(dirID synd.FileID) error {
 }
 
 // processItem processes a single item (file or directory).
-// If the item is a directory, recursively processes its contents.
-// If the item is an exportable file, exports and saves it.
-// Returns an error only if a file write fails.
-// processItem processes a single item (file or directory) using only the common fields.
 // If the item is a directory, recursively processes its contents.
 // If the item is an exportable file, exports and saves it.
 // Returns an error only if a file write fails.

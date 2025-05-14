@@ -17,8 +17,7 @@ type jsonListResponseV2 struct {
 	Data jsonListResponseDataV2 `json:"data"`
 }
 
-// ListResponse represents the complete response from listing files or folders
-// with proper Go types for improved usability
+// ListResponse represents the complete response from listing files or folders with proper Go types for improved usability.
 type ListResponse struct {
 	Items []*ResponseItem
 	Total int64
@@ -26,13 +25,10 @@ type ListResponse struct {
 }
 
 // List retrieves the contents of a folder on Synology Drive.
-// Parameters:
-//   - fileID: The identifier of the folder to list (e.g., MyDrive constant for the root folder)
 //
-// Returns:
-//   - *ListResponse: Data structure containing the list of items and total count
-//   - error: HttpError if there was a network or request error
-//   - error: SynologyError if the listing failed or the response was invalid
+//	fileID: The identifier of the folder to list (e.g., MyDrive constant for the root folder)
+//
+// Returns a ListResponse with all items and total count, or an error if the operation fails.
 func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 	req := apiRequest{
 		api:     APINameSynologyDriveFiles,

@@ -19,17 +19,6 @@ type jsonSharedWithMeResponseV2 struct {
 	Data jsonSharedWithMeResponseDataV2 `json:"data"`
 }
 
-// ResponseItem represents a file or folder item in a Synology Drive listing or shared-with-me API response
-// with proper Go types for improved usability. This type unifies ListResponseItem and ResponseItem.
-// ResponseItem represents a file or folder item in a Synology Drive listing or shared-with-me API response
-// with proper Go types for improved usability. This type unifies ListResponseItem and ResponseItem.
-// (definition is in list.go)
-// type ResponseItem is now defined in list.go
-
-// toResponseItem converts the JSON representation to the Go friendly representation
-// with proper types such as time.Time instead of Unix timestamps
-// toResponseItem method is defined in list.go
-
 type SharedWithMeResponse struct {
 	Items []*ResponseItem
 	Total int64
