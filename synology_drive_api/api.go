@@ -344,7 +344,7 @@ type jsonResponseItem struct {
 	EnableWatermark        bool              `json:"enable_watermark"`
 	Encrypted              bool              `json:"encrypted"`
 	ForceWatermarkDownload bool              `json:"force_watermark_download"`
-	Hash                   string            `json:"hash"`
+	Hash                   FileHash          `json:"hash"`
 	ImageMetadata          jsonImageMetadata `json:"image_metadata"`
 	Labels                 []string          `json:"labels"`
 	MaxID                  int64             `json:"max_id"`
@@ -395,7 +395,7 @@ type ResponseItem struct {
 	EnableWatermark        bool
 	Encrypted              bool
 	ForceWatermarkDownload bool
-	Hash                   string
+	Hash                   FileHash
 	ImageMetadata          ImageMetadata
 	Labels                 []string
 	MaxID                  int64

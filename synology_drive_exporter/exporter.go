@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
@@ -65,17 +66,12 @@ type Exporter struct {
 func NewExporter(username string, password string, base_url string, downloadDir string) (*Exporter, error) {
 	session, err := synd.NewSynologySession(username, password, base_url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create session: %v", err)
 	}
 	if err = session.Login(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to login: %v", err)
 	}
-
-	exporter := &Exporter{
-		session:     session,
-		downloadDir: downloadDir,
-		fs:          &DefaultFileSystem{},
-	}
+	exporter := NewExporterWithCustomDependencies(session, downloadDir, &DefaultFileSystem{})
 	return exporter, nil
 }
 
@@ -90,11 +86,30 @@ func NewExporterWithCustomDependencies(session SessionInterface, downloadDir str
 
 // ExportMyDrive exports all convertible files from the user's Synology Drive
 // and saves them to the download directory.
+// ExportMyDrive exports all convertible files from the user's Synology Drive
+// and saves them to the download directory.
+// It records each downloaded file into history and saves the history at the end.
 func (e *Exporter) ExportMyDrive() error {
-	return e.processDirectory(synd.MyDrive)
+	history, err := NewDownloadHistory(filepath.Join(e.downloadDir, "mydrive_history.json"))
+	if err != nil {
+		return fmt.Errorf("failed to create download history: %v", err)
+	}
+	if err := history.Load(); err != nil {
+		return fmt.Errorf("failed to load download history: %v", err)
+	}
+
+	if err := e.processDirectory(synd.MyDrive, history); err != nil {
+		return fmt.Errorf("failed to export MyDrive: %v", err)
+	}
+	if err := history.Save(); err != nil {
+		return fmt.Errorf("failed to save download history: %v", err)
+	}
+	return nil
 }
 
 // ExportTeamFolder exports all convertible files from the team folder.
+// ExportTeamFolder exports all convertible files from the team folder.
+// Note: Download history is not used in this export.
 func (e *Exporter) ExportTeamFolder() error {
 	teamFolder, err := e.session.TeamFolder()
 	if err != nil {
@@ -102,7 +117,7 @@ func (e *Exporter) ExportTeamFolder() error {
 	}
 
 	for _, item := range teamFolder.Items {
-		if err := e.processDirectory(item.FileID); err != nil {
+		if err := e.processDirectory(item.FileID, nil); err != nil {
 			return err
 		}
 	}
@@ -111,6 +126,8 @@ func (e *Exporter) ExportTeamFolder() error {
 
 // ExportSharedWithMe exports all convertible files and directories shared with the user.
 // It processes both files and directories in the shared-with-me list.
+// ExportSharedWithMe exports all convertible files and directories shared with the user.
+// Note: Download history is not used in this export.
 func (e *Exporter) ExportSharedWithMe() error {
 	sharedWithMe, err := e.session.SharedWithMe()
 	if err != nil {
@@ -118,7 +135,7 @@ func (e *Exporter) ExportSharedWithMe() error {
 	}
 
 	for _, item := range sharedWithMe.Items {
-		if err := e.processItem(item); err != nil {
+		if err := e.processItem(item, nil); err != nil {
 			return err
 		}
 	}
@@ -132,13 +149,22 @@ func (e *Exporter) ExportSharedWithMe() error {
 //
 // Returns:
 //   - error: An error if the export operation failed
-func (e *Exporter) processDirectory(dirID synd.FileID) error {
+//
+// processDirectory recursively processes a directory and its subdirectories,
+// exporting all convertible Synology Office files.
+// Parameters:
+//   - dirID: The identifier of the directory to process
+//   - history: DownloadHistory instance to record downloaded files
+//
+// Returns:
+//   - error: An error if the export operation failed
+func (e *Exporter) processDirectory(dirID synd.FileID, history *DownloadHistory) error {
 	list, err := e.session.List(dirID)
 	if err != nil {
 		return err
 	}
 	for _, item := range list.Items {
-		if err := e.processItem(item); err != nil {
+		if err := e.processItem(item, history); err != nil {
 			return err
 		}
 	}
@@ -149,12 +175,16 @@ func (e *Exporter) processDirectory(dirID synd.FileID) error {
 // If the item is a directory, recursively processes its contents.
 // If the item is an exportable file, exports and saves it.
 // Returns an error only if a file write fails.
-func (e *Exporter) processItem(item *synd.ResponseItem) error {
+// processItem processes a single item (file or directory).
+// If the item is a directory, recursively processes its contents.
+// If the item is an exportable file, exports and saves it, and records it in download history.
+// Returns an error only if a file write fails.
+func (e *Exporter) processItem(item *synd.ResponseItem, history *DownloadHistory) error {
 	// Use a tagged switch for item.Type for clarity and maintainability.
 	switch item.Type {
 	case synd.ObjectTypeDirectory:
 		// Recursively process directory
-		if err := e.processDirectory(item.FileID); err != nil {
+		if err := e.processDirectory(item.FileID, history); err != nil {
 			fmt.Printf("Failed to process directory %s: %v\n", item.DisplayPath, err)
 			// Continue processing other items even if one directory fails
 		}
@@ -179,6 +209,14 @@ func (e *Exporter) processItem(item *synd.ResponseItem) error {
 			return ExportFileWriteError(err.Error())
 		}
 		fmt.Printf("Saved to: %s\n", downloadPath)
+
+		if history != nil {
+			history.Items[localPath] = DownloadItem{
+				FileID:       item.FileID,
+				Hash:         item.Hash,
+				DownloadTime: time.Now(),
+			}
+		}
 	}
 	return nil
 }
