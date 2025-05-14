@@ -243,8 +243,7 @@ func TestLoad(t *testing.T) {
 		require.NoError(t, err)
 
 		err = history.Load()
-		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), "failed to read download history file")
+		assert.NoError(t, err)
 	})
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
@@ -110,10 +111,15 @@ func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 	return nil
 }
 
-// Load reads download history from the JSON file specified during initialization.
+// Load reads download history from the JSON file specified.
 // It returns a DownloadHistoryFileError if the file cannot be opened
 // or a DownloadHistoryParseError if the file contains invalid data.
 func (d *DownloadHistory) Load() error {
+	// If the file does not exist, we can just behave as if there is no history
+	if _, err := os.Stat(d.path); os.IsNotExist(err) {
+		return nil
+	}
+
 	file, err := os.Open(d.path)
 	if err != nil {
 		return DownloadHistoryFileReadError(err.Error())
@@ -158,7 +164,13 @@ func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 
 // Save writes the download history to the JSON file specified during initialization.
 // It returns a DownloadHistoryFileError if the file cannot be created or written to.
+// Save writes the download history to the JSON file specified during initialization.
+// It returns a DownloadHistoryFileError if the file cannot be created or written to.
 func (d *DownloadHistory) Save() error {
+	dir := filepath.Dir(d.path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return DownloadHistoryFileWriteError(err.Error())
+	}
 	file, err := os.Create(d.path)
 	if err != nil {
 		return DownloadHistoryFileWriteError(err.Error())

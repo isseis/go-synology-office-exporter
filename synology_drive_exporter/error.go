@@ -8,6 +8,12 @@ func (e DownloadHistoryFileError) Error() string {
 	return "download history file error: " + strconv.Quote(string(e))
 }
 
+type DownloadHistoryFileIsNotFoundError string
+
+func (e DownloadHistoryFileIsNotFoundError) Error() string {
+	return "download history file is not found: " + strconv.Quote(string(e))
+}
+
 type DownloadHistoryFileReadError string
 
 func (e DownloadHistoryFileReadError) Error() string {
