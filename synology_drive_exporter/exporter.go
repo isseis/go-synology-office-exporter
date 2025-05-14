@@ -194,15 +194,21 @@ func (e *Exporter) processItem(item *synd.ResponseItem, history *DownloadHistory
 		if exportName == "" {
 			return nil
 		}
+		localPath := filepath.Clean(exportName)
+		for len(localPath) > 0 && localPath[0] == '/' {
+			localPath = localPath[1:]
+		}
+		if history != nil {
+			if prev, downloaded := history.Items[localPath]; downloaded && prev.Hash == item.Hash {
+				fmt.Printf("Skip (already exported and hash unchanged): %s\n", localPath)
+				return nil
+			}
+		}
 		fmt.Printf("Exporting file: %s\n", exportName)
 		resp, err := e.session.Export(item.FileID)
 		if err != nil {
 			fmt.Printf("Failed to export %s: %v\n", exportName, err)
 			return nil
-		}
-		localPath := filepath.Clean(exportName)
-		for len(localPath) > 0 && localPath[0] == '/' {
-			localPath = localPath[1:]
 		}
 		downloadPath := filepath.Join(e.downloadDir, localPath)
 		if err := e.fs.CreateFile(downloadPath, resp.Content, 0755, 0644); err != nil {

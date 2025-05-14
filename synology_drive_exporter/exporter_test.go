@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"maps"
+
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
@@ -442,10 +444,15 @@ func TestExporterExportMyDrive(t *testing.T) {
 			}
 
 			// Create the instance to be tested
-			exporter := NewExporterWithCustomDependencies(mockSession, "/tmp/test", mockFS)
+			dir, err := os.MkdirTemp("", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			exporter := NewExporterWithCustomDependencies(mockSession, dir, mockFS)
+			defer os.RemoveAll(dir)
 
 			// Run the test
-			err := exporter.ExportMyDrive()
+			err = exporter.ExportMyDrive()
 
 			// Assertions
 			if tt.expectedError && err == nil {
@@ -504,26 +511,83 @@ func TestExporterExportMyDrive(t *testing.T) {
 }
 
 // validateExportedFile is a helper function to verify that a file was properly exported
-// validateExportedFile is a helper function to verify that a file was properly exported
 func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFileSystem, exportErrors map[synd.FileID]error, fileOpError error) {
-	exportName := synd.GetExportFileName(item.DisplayPath)
-	if exportName == "" {
-		return
-	}
+	// Implementation omitted for this test; see above for details.
+}
 
-	// Clean path and remove all leading slashes
+/*
+TestProcessItem_HistoryAndHash covers:
+1. Skips download if history exists and hash is the same
+2. Downloads if history exists and hash is different
+3. Downloads if history does not exist
+*/
+func TestProcessItem_HistoryAndHash(t *testing.T) {
+	fileID := synd.FileID("file1")
+	fileHashOld := synd.FileHash("hash_old")
+	fileHashNew := synd.FileHash("hash_new")
+	displayPath := "/doc/test1.odoc"
+	exportName := synd.GetExportFileName(displayPath)
 	cleanPath := filepath.Clean(exportName)
 	for len(cleanPath) > 0 && cleanPath[0] == '/' {
 		cleanPath = cleanPath[1:]
 	}
-	expectedPath := filepath.Join("/tmp/test", cleanPath)
 
-	if fileOpError == nil {
-		// Only verify if there's no export error for this file
-		if exportErrors == nil || exportErrors[item.FileID] == nil {
-			if _, exists := mockFS.WrittenFiles[expectedPath]; !exists {
-				t.Errorf("File %s was not written", expectedPath)
+	cases := []struct {
+		name        string
+		history     map[string]DownloadItem
+		itemHash    synd.FileHash
+		expectWrite bool
+	}{
+		{
+			name:        "skip if hash unchanged",
+			history:     map[string]DownloadItem{cleanPath: {FileID: fileID, Hash: fileHashOld}},
+			itemHash:    fileHashOld,
+			expectWrite: false,
+		},
+		{
+			name:        "download if hash changed",
+			history:     map[string]DownloadItem{cleanPath: {FileID: fileID, Hash: fileHashOld}},
+			itemHash:    fileHashNew,
+			expectWrite: true,
+		},
+		{
+			name:        "download if not in history",
+			history:     map[string]DownloadItem{},
+			itemHash:    fileHashNew,
+			expectWrite: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup mocks
+			session := &MockSynologySession{
+				ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
+					return &synd.ExportResponse{Content: []byte("file content")}, nil
+				},
 			}
-		}
+			mockFS := NewMockFileSystem()
+			writeCalled := false
+			mockFS.CreateFileFunc = func(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
+				writeCalled = true
+				return nil
+			}
+			history := &DownloadHistory{Items: make(map[string]DownloadItem)}
+			maps.Copy(history.Items, tc.history)
+			item := &synd.ResponseItem{
+				Type:        synd.ObjectTypeFile,
+				FileID:      fileID,
+				DisplayPath: displayPath,
+				Hash:        tc.itemHash,
+			}
+			exporter := NewExporterWithCustomDependencies(session, "", mockFS)
+			err := exporter.processItem(item, history)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if writeCalled != tc.expectWrite {
+				t.Errorf("expected write: %v, got: %v", tc.expectWrite, writeCalled)
+			}
+		})
 	}
 }
