@@ -510,7 +510,8 @@ func TestExporterExportMyDrive(t *testing.T) {
 	}
 }
 
-// validateExportedFile is a helper function to verify that a file was properly exported
+// validateExportedFile checks that a file was exported correctly by inspecting the mock file system.
+// This function is a test helper and its implementation is omitted here for brevity.
 func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFileSystem, exportErrors map[synd.FileID]error, fileOpError error) {
 	// Implementation omitted for this test; see above for details.
 }

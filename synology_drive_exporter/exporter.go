@@ -127,7 +127,7 @@ func (e *Exporter) ExportSharedWithMe() error {
 
 // exportItemsWithHistory is a common internal helper for exporting a slice of ExportItem with download history management.
 // It handles DownloadHistory creation, loading, saving, and calls processItem for each item.
-// This function is used by both ExportRootsWithHistory and ExportRootsWithHistorySharedItems to avoid code duplication.
+// This function is used by both ExportRootsWithHistory and ExportSharedWithMe to avoid code duplication.
 func (e *Exporter) exportItemsWithHistory(
 	items []ExportItem,
 	historyFile string,
@@ -234,10 +234,6 @@ func (e *Exporter) processFile(item ExportItem, history *DownloadHistory) error 
 	return nil
 }
 
-// processItem processes a single item (file or directory).
-// If the item is a directory, recursively processes its contents.
-// If the item is an exportable file, exports and saves it.
-// Returns an error only if a file write fails.
 // ExportItem contains only the fields needed for export processing.
 // This reduces dependency on the full ResponseItem struct and improves maintainability.
 type ExportItem struct {
@@ -247,7 +243,7 @@ type ExportItem struct {
 	Hash        synd.FileHash
 }
 
-// toExportItem converts a *synd.ResponseItem to a *ExportItem for processing/export purposes.
+// toExportItem converts a *synd.ResponseItem to an ExportItem for export processing.
 // Only the necessary fields are copied. This is a standalone function because Go does not allow methods on non-local types.
 func toExportItem(item *synd.ResponseItem) ExportItem {
 	return ExportItem{
@@ -258,12 +254,11 @@ func toExportItem(item *synd.ResponseItem) ExportItem {
 	}
 }
 
-// processItem processes a single item (file or directory) using ExportItem.
+// processItem processes a single item (file or directory).
 // If the item is a directory, recursively processes its contents.
 // If the item is an exportable file, exports and saves it.
 // Returns an error only if a file write fails.
-// processItem processes a single item (file or directory) using ExportItem.
-// If topLevel is true, directory errors are returned; otherwise, errors are logged and skipped.
+// If topLevel is true, directory errors are returned; otherwise, errors are logged and processing continues.
 func (e *Exporter) processItem(item ExportItem, history *DownloadHistory, topLevel bool) error {
 	switch item.Type {
 	case synd.ObjectTypeDirectory:
