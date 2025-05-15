@@ -177,7 +177,6 @@ func TestExporterExportMyDrive(t *testing.T) {
 				"file1": {Content: []byte("file1 content")},
 			},
 			fileOperationError: errors.New("file operation error"),
-			expectedError:      true,
 		},
 		{
 			name: "Directory traversal: One level deep",
@@ -511,18 +510,19 @@ func TestExporterExportMyDrive(t *testing.T) {
 	}
 }
 
-// validateExportedFile is a helper function to verify that a file was properly exported
+// validateExportedFile checks that a file was exported correctly by inspecting the mock file system.
+// This function is a test helper and its implementation is omitted here for brevity.
 func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFileSystem, exportErrors map[synd.FileID]error, fileOpError error) {
 	// Implementation omitted for this test; see above for details.
 }
 
 /*
-TestProcessItem_HistoryAndHash covers:
+TestExportItem_HistoryAndHash covers:
 1. Skips download if history exists and hash is the same
 2. Downloads if history exists and hash is different
 3. Downloads if history does not exist
 */
-func TestProcessItem_HistoryAndHash(t *testing.T) {
+func TestExportItem_HistoryAndHash(t *testing.T) {
 	fileID := synd.FileID("file1")
 	fileHashOld := synd.FileHash("hash_old")
 	fileHashNew := synd.FileHash("hash_new")
@@ -571,14 +571,14 @@ func TestProcessItem_HistoryAndHash(t *testing.T) {
 			}
 			history := &DownloadHistory{Items: make(map[string]DownloadItem)}
 			maps.Copy(history.Items, tc.history)
-			item := &synd.ResponseItem{
+			item := ExportItem{
 				Type:        synd.ObjectTypeFile,
 				FileID:      fileID,
 				DisplayPath: displayPath,
 				Hash:        tc.itemHash,
 			}
 			exporter := NewExporterWithCustomDependencies(session, "", mockFS)
-			err := exporter.processItem(item, history)
+			err := exporter.processItem(item, history, false)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

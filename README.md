@@ -10,7 +10,7 @@ A command-line tool to export documents from Synology Drive/Office to local file
 
 - Export Synology Office documents (Spreadsheet, Document, Slides) to Microsoft Office formats (e.g., xlsx, docx, pptx).
 - Supports Synology Drive API authentication.
-- Download history management to avoid duplicate exports (experimental; only MyDrive is supported).
+- Download history management to avoid duplicate exports.
 - CLI interface for automation and scripting.
 - Written in Go for cross-platform binaries and performance.
 
@@ -68,20 +68,19 @@ You may also provide `--host`, `--username`, and `--password` as command-line op
 
 ## Example
 
-Export all documents from MyDrive:
+Export all documents:
 
 ```sh
 export SYNOLOGY_HOST=192.168.1.10
 export SYNOLOGY_USERNAME=admin
 export SYNOLOGY_PASSWORD=secret
 
-./synology-office-exporter \
-  --output ./exports \
+./synology-office-exporter --output ./exports
 ```
 
 ## Download History
 
-The tool maintains a history file (default: `mydrive_history.json`) to avoid re-downloading already exported documents. Delete or rename this file to force a full re-export.
+The tool maintains a history file (`mydrive_history.json`, `team_folder_history.json`, `shared_with_me_history.json`) to avoid re-downloading already exported documents. Delete or rename this file to force a full re-export.
 
 ## Security
 
