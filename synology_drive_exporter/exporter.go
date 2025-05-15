@@ -72,12 +72,13 @@ func NewExporter(username string, password string, base_url string, downloadDir 
 	if err = session.Login(); err != nil {
 		return nil, fmt.Errorf("failed to login: %w", err)
 	}
-	exporter := NewExporterWithCustomDependencies(session, downloadDir, &DefaultFileSystem{})
+	exporter := NewExporterWithDependencies(session, downloadDir, &DefaultFileSystem{})
 	return exporter, nil
 }
 
-// NewExporterWithCustomDependencies creates a new Exporter with custom dependencies for testing.
-func NewExporterWithCustomDependencies(session SessionInterface, downloadDir string, fs FileSystemOperations) *Exporter {
+// NewExporterWithDependencies creates a new Exporter with injected dependencies (session, downloadDir, and file system).
+// This constructor allows for dependency injection, making it suitable for both production and testing.
+func NewExporterWithDependencies(session SessionInterface, downloadDir string, fs FileSystemOperations) *Exporter {
 	return &Exporter{
 		session:     session,
 		downloadDir: downloadDir,

@@ -448,7 +448,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			exporter := NewExporterWithCustomDependencies(mockSession, dir, mockFS)
+			exporter := NewExporterWithDependencies(mockSession, dir, mockFS)
 			defer os.RemoveAll(dir)
 
 			// Run the test
@@ -577,7 +577,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 				DisplayPath: displayPath,
 				Hash:        tc.itemHash,
 			}
-			exporter := NewExporterWithCustomDependencies(session, "", mockFS)
+			exporter := NewExporterWithDependencies(session, "", mockFS)
 			err := exporter.processItem(item, history, false)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
