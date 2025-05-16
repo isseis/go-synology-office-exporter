@@ -14,9 +14,26 @@ import (
 const HISTORY_VERSION = 2
 const HISTORY_MAGIC = "SYNOLOGY_OFFICE_EXPORTER"
 
+type counter struct {
+	count int
+}
+
+func (c *counter) Increment() {
+	c.count++
+}
+
+func (c *counter) Get() int {
+	return c.count
+}
+
 type DownloadHistory struct {
 	Items map[string]DownloadItem
 	path  string
+
+	DownloadCount counter
+	SkippedCount  counter
+	IgnoredCount  counter
+	ErrorCount    counter
 }
 
 type jsonHeader struct {

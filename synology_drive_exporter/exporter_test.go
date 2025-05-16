@@ -144,7 +144,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		{
 			name:          "Error when getting list",
 			listError:     errors.New("list error"),
-			expectedError: true,
+			expectedFiles: 0,
 		},
 		{
 			name: "Error during export",
@@ -578,10 +578,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 				Hash:        tc.itemHash,
 			}
 			exporter := NewExporterWithDependencies(session, "", mockFS)
-			err := exporter.processItem(item, history, false)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			exporter.processItem(item, history)
 			if writeCalled != tc.expectWrite {
 				t.Errorf("expected write: %v, got: %v", tc.expectWrite, writeCalled)
 			}
