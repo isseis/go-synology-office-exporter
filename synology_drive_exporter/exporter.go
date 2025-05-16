@@ -88,8 +88,6 @@ func NewExporterWithDependencies(session SessionInterface, downloadDir string, f
 
 // ExportMyDrive exports all convertible files from the user's Synology Drive and saves them to the download directory.
 // Download history is used to avoid duplicate downloads.
-// ExportMyDrive exports all convertible files from the user's Synology Drive and saves them to the download directory.
-// Download history is used to avoid duplicate downloads.
 func (e *Exporter) ExportMyDrive() (ExportStats, error) {
 	return e.ExportRootsWithHistory(
 		[]synd.FileID{synd.MyDrive},
@@ -97,8 +95,6 @@ func (e *Exporter) ExportMyDrive() (ExportStats, error) {
 	)
 }
 
-// ExportTeamFolder exports all convertible files from all team folders.
-// Download history is used to avoid duplicate downloads.
 // ExportTeamFolder exports all convertible files from all team folders.
 // Download history is used to avoid duplicate downloads.
 func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
@@ -118,8 +114,6 @@ func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
 
 // ExportSharedWithMe exports all convertible files and directories shared with the user.
 // Download history is used to avoid duplicate downloads.
-// ExportSharedWithMe exports all convertible files and directories shared with the user.
-// Download history is used to avoid duplicate downloads.
 func (e *Exporter) ExportSharedWithMe() (ExportStats, error) {
 	sharedWithMe, err := e.session.SharedWithMe()
 	if err != nil {
@@ -135,8 +129,6 @@ func (e *Exporter) ExportSharedWithMe() (ExportStats, error) {
 // exportItemsWithHistory is a common internal helper for exporting a slice of ExportItem with download history management.
 // It handles DownloadHistory creation, loading, saving, and calls processItem for each item.
 // This function is used by both ExportRootsWithHistory and ExportSharedWithMe to avoid code duplication.
-// exportItemsWithHistory is a common internal helper for exporting a slice of ExportItem with download history management.
-// It handles DownloadHistory creation, loading, saving, and calls processItem for each item.
 // Returns ExportStats and error (wrapped in DownloadHistoryOperationError if relevant).
 func (e *Exporter) exportItemsWithHistory(
 	items []ExportItem,
@@ -159,8 +151,6 @@ func (e *Exporter) exportItemsWithHistory(
 	return history.GetStats(), nil
 }
 
-// ExportRootsWithHistory is a wrapper for exporting multiple root directories with download history management.
-// It converts rootIDs to ExportItem and delegates to exportItemsWithHistory.
 // ExportRootsWithHistory is a wrapper for exporting multiple root directories with download history management.
 // It converts rootIDs to ExportItem and delegates to exportItemsWithHistory.
 func (e *Exporter) ExportRootsWithHistory(
