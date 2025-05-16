@@ -15,12 +15,12 @@ const Version = "0.1.0"
 
 func init() {
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, relying on environment variables")
+		fmt.Println("No .env file found, relying on environment variables")
 	}
 }
 
 func main() {
-	log.Println("Starting Synology Office Exporter...")
+	fmt.Println("Starting Synology Office Exporter...")
 
 	// Define command-line flags
 	userFlag := flag.String("user", "", "Synology NAS username")
