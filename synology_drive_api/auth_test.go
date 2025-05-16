@@ -8,6 +8,7 @@ import (
 )
 
 func TestAuth(t *testing.T) {
+	ResetMockLogin()
 	t.Run("Login", func(t *testing.T) {
 		s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
 		require.NoError(t, err)

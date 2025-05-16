@@ -8,6 +8,7 @@ import (
 )
 
 func TestExport(t *testing.T) {
+	ResetMockLogin()
 	s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
 	require.NoError(t, err)
 

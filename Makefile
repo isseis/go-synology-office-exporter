@@ -20,6 +20,9 @@ test:
 	$(GO_TEST) ./synology_drive_api/...
 	$(GO_TEST) ./synology_drive_exporter/...
 
+test-full: test
+	USE_REAL_SYNOLOGY=1 $(GO_TEST) ./synology_drive_api/...
+
 # Clean up automatically generated files
 clean:
 	$(RM) bin/export out
