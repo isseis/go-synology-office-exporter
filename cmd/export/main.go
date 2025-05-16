@@ -85,31 +85,24 @@ func main() {
 
 	exitCode := 0
 
-	if stats, err := exporter.ExportMyDrive(); err != nil {
-		exitCode = 1
-		fmt.Printf("Export failed: %v", err)
-	} else {
-		fmt.Printf("[MyDrive] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n", stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
-		if stats.Errors > 0 {
-			exitCode = 1
-		}
+	type exportTask struct {
+		name string
+		fn   func() (syndexp.ExportStats, error)
 	}
-
-	if stats, err := exporter.ExportTeamFolder(); err != nil {
-		exitCode = 1
-		fmt.Printf("Export failed: %v", err)
-	} else {
-		fmt.Printf("[TeamFolder] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n", stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
-		if stats.Errors > 0 {
-			exitCode = 1
-		}
+	tasks := []exportTask{
+		{"MyDrive", exporter.ExportMyDrive},
+		{"TeamFolder", exporter.ExportTeamFolder},
+		{"SharedWithMe", exporter.ExportSharedWithMe},
 	}
-
-	if stats, err := exporter.ExportSharedWithMe(); err != nil {
-		exitCode = 1
-		fmt.Printf("Export failed: %v", err)
-	} else {
-		fmt.Printf("[SharedWithMe] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n", stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
+	for _, task := range tasks {
+		stats, err := task.fn()
+		if err != nil {
+			exitCode = 1
+			fmt.Printf("Export [%s] failed: %v\n", task.name, err)
+			continue
+		}
+		fmt.Printf("[%s] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n",
+			task.name, stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
 		if stats.Errors > 0 {
 			exitCode = 1
 		}
