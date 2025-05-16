@@ -28,12 +28,12 @@ func (fs *DefaultFileSystem) CreateFile(filename string, data []byte, dirPerm os
 	// Create parent directories if they don't exist
 	dir := filepath.Dir(filename)
 	if err := os.MkdirAll(dir, dirPerm); err != nil {
-		return ExportFileWriteError(fmt.Sprintf("failed to create directories for %s: %v", filename, err))
+		return ExportFileWriteError{Op: fmt.Sprintf("MkdirAll for %s", dir), Err: err}
 	}
 
 	// Write data to the file
 	if err := os.WriteFile(filename, data, filePerm); err != nil {
-		return ExportFileWriteError(fmt.Sprintf("failed to write to file %s: %v", filename, err))
+		return ExportFileWriteError{Op: fmt.Sprintf("WriteFile for %s", filename), Err: err}
 	}
 
 	return nil
@@ -219,13 +219,13 @@ func (e *Exporter) processFile(item ExportItem, history *DownloadHistory) {
 	fmt.Printf("Exporting file: %s\n", exportName)
 	resp, err := e.session.Export(item.FileID)
 	if err != nil {
-		fmt.Printf("failed to export %s: %v", exportName, err)
+		fmt.Printf("failed to export %s: %v\n", exportName, err)
 		history.ErrorCount.Increment()
 		return
 	}
 	downloadPath := filepath.Join(e.downloadDir, localPath)
 	if err := e.fs.CreateFile(downloadPath, resp.Content, 0755, 0644); err != nil {
-		fmt.Printf("failed to write file %s: %v", downloadPath, err)
+		fmt.Printf("failed to write file %s: %v\n", downloadPath, err)
 		history.ErrorCount.Increment()
 		return
 	}

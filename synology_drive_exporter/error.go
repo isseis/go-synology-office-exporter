@@ -49,8 +49,11 @@ func (e DownloadHistoryParseError) Error() string {
 	return "failed to parse download history JSON: " + strconv.Quote(string(e))
 }
 
-type ExportFileWriteError string
+type ExportFileWriteError struct {
+	Op  string // operation description
+	Err error  // underlying error
+}
 
 func (e ExportFileWriteError) Error() string {
-	return "failed to write export file: " + strconv.Quote(string(e))
+	return fmt.Sprintf("failed to write export file [%s]: %v", e.Op, e.Err)
 }
