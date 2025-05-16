@@ -1,6 +1,23 @@
 package synology_drive_exporter
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+)
+
+// DownloadHistoryOperationError is returned when a download history operation fails.
+type DownloadHistoryOperationError struct {
+	Op  string // operation description
+	Err error  // underlying error
+}
+
+func (e *DownloadHistoryOperationError) Error() string {
+	return fmt.Sprintf("download history operation error [%s]: %v", e.Op, e.Err)
+}
+
+func (e *DownloadHistoryOperationError) Unwrap() error {
+	return e.Err
+}
 
 type DownloadHistoryFileError string
 

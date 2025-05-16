@@ -84,17 +84,35 @@ func main() {
 	}
 
 	exitCode := 0
-	if err := exporter.ExportMyDrive(); err != nil {
+
+	if stats, err := exporter.ExportMyDrive(); err != nil {
 		exitCode = 1
 		log.Printf("Export failed: %v", err)
+	} else {
+		fmt.Printf("[MyDrive] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n", stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
+		if stats.Errors > 0 {
+			exitCode = 1
+		}
 	}
-	if err := exporter.ExportTeamFolder(); err != nil {
+
+	if stats, err := exporter.ExportTeamFolder(); err != nil {
 		exitCode = 1
 		log.Printf("Export failed: %v", err)
+	} else {
+		fmt.Printf("[TeamFolder] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n", stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
+		if stats.Errors > 0 {
+			exitCode = 1
+		}
 	}
-	if err := exporter.ExportSharedWithMe(); err != nil {
+
+	if stats, err := exporter.ExportSharedWithMe(); err != nil {
 		exitCode = 1
 		log.Printf("Export failed: %v", err)
+	} else {
+		fmt.Printf("[SharedWithMe] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n", stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
+		if stats.Errors > 0 {
+			exitCode = 1
+		}
 	}
 
 	log.Println("Export complete")

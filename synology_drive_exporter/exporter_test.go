@@ -450,7 +450,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 			defer os.RemoveAll(dir)
 
 			// Run the test
-			err = exporter.ExportMyDrive()
+			stats, err := exporter.ExportMyDrive()
 
 			// Assertions
 			if tt.expectedError && err == nil {
@@ -460,10 +460,16 @@ func TestExporterExportMyDrive(t *testing.T) {
 				t.Errorf("Unexpected error occurred: %v", err)
 			}
 
-			// Validate file write count
-			if len(mockFS.WrittenFiles) != tt.expectedFiles {
-				t.Errorf("Expected %d files to be written, but got %d",
-					tt.expectedFiles, len(mockFS.WrittenFiles))
+			// Validate file write count matches stats.Downloaded
+			if len(mockFS.WrittenFiles) != stats.Downloaded {
+				t.Errorf("Expected %d files to be written (stats.Downloaded), but got %d",
+					stats.Downloaded, len(mockFS.WrittenFiles))
+			}
+			if stats.Downloaded != tt.expectedFiles {
+				t.Errorf("Expected stats.Downloaded=%d, but got %d", tt.expectedFiles, stats.Downloaded)
+			}
+			if tt.expectedError && stats.Errors == 0 {
+				t.Errorf("Expected stats.Errors > 0, but got %d", stats.Errors)
 			}
 
 			// Check if all expected directories were traversed
