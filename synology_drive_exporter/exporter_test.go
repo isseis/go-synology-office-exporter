@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"maps"
-
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
@@ -144,7 +142,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		{
 			name:          "Error when getting list",
 			listError:     errors.New("list error"),
-			expectedError: true,
+			expectedFiles: 0,
 		},
 		{
 			name: "Error during export",
@@ -452,7 +450,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 			defer os.RemoveAll(dir)
 
 			// Run the test
-			err = exporter.ExportMyDrive()
+			stats, err := exporter.ExportMyDrive()
 
 			// Assertions
 			if tt.expectedError && err == nil {
@@ -462,10 +460,16 @@ func TestExporterExportMyDrive(t *testing.T) {
 				t.Errorf("Unexpected error occurred: %v", err)
 			}
 
-			// Validate file write count
-			if len(mockFS.WrittenFiles) != tt.expectedFiles {
-				t.Errorf("Expected %d files to be written, but got %d",
-					tt.expectedFiles, len(mockFS.WrittenFiles))
+			// Validate file write count matches stats.Downloaded
+			if len(mockFS.WrittenFiles) != stats.Downloaded {
+				t.Errorf("Expected %d files to be written (stats.Downloaded), but got %d",
+					stats.Downloaded, len(mockFS.WrittenFiles))
+			}
+			if stats.Downloaded != tt.expectedFiles {
+				t.Errorf("Expected stats.Downloaded=%d, but got %d", tt.expectedFiles, stats.Downloaded)
+			}
+			if tt.expectedError && stats.Errors == 0 {
+				t.Errorf("Expected stats.Errors > 0, but got %d", stats.Errors)
 			}
 
 			// Check if all expected directories were traversed
@@ -511,17 +515,142 @@ func TestExporterExportMyDrive(t *testing.T) {
 }
 
 // validateExportedFile checks that a file was exported correctly by inspecting the mock file system.
-// This function is a test helper and its implementation is omitted here for brevity.
 func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFileSystem, exportErrors map[synd.FileID]error, fileOpError error) {
 	// Implementation omitted for this test; see above for details.
 }
 
-/*
-TestExportItem_HistoryAndHash covers:
-1. Skips download if history exists and hash is the same
-2. Downloads if history exists and hash is different
-3. Downloads if history does not exist
-*/
+// newTestDownloadHistory creates a DownloadHistory instance for testing.
+func newTestDownloadHistory(items map[string]DownloadItem) *DownloadHistory {
+	if items == nil {
+		items = make(map[string]DownloadItem)
+	}
+	return &DownloadHistory{
+		Items: items,
+	}
+}
+
+// TestExporter_Counts verifies that DownloadHistory's counters are incremented correctly.
+func TestExporter_Counts(t *testing.T) {
+	fileID := synd.FileID("file1")
+	fileHash := synd.FileHash("hash1")
+	fileID2 := synd.FileID("file2")
+	fileHash2 := synd.FileHash("hash2")
+	ignoredFileID := synd.FileID("file3")
+	ignoredPath := "/doc/ignored.txt" // not exportable
+	exportName := synd.GetExportFileName("/doc/test1.odoc")
+	cleanPath := strings.TrimPrefix(filepath.Clean(exportName), "/")
+
+	t.Run("DownloadCount increments on successful export", func(t *testing.T) {
+		session := &MockSynologySession{
+			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
+				return &synd.ExportResponse{Content: []byte("file content")}, nil
+			},
+		}
+		mockFS := NewMockFileSystem()
+		history := newTestDownloadHistory(nil)
+		item := ExportItem{
+			Type:        synd.ObjectTypeFile,
+			FileID:      fileID,
+			DisplayPath: "/doc/test1.odoc",
+			Hash:        fileHash,
+		}
+		exporter := NewExporterWithDependencies(session, "", mockFS)
+		exporter.processItem(item, history)
+		if got := history.DownloadCount.Get(); got != 1 {
+			t.Errorf("DownloadCount = %d, want 1", got)
+		}
+	})
+
+	t.Run("SkippedCount increments if file is already exported with same hash", func(t *testing.T) {
+		session := &MockSynologySession{
+			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
+				return &synd.ExportResponse{Content: []byte("file content")}, nil
+			},
+		}
+		mockFS := NewMockFileSystem()
+		history := newTestDownloadHistory(map[string]DownloadItem{
+			cleanPath: {FileID: fileID, Hash: fileHash},
+		})
+		item := ExportItem{
+			Type:        synd.ObjectTypeFile,
+			FileID:      fileID,
+			DisplayPath: "/doc/test1.odoc",
+			Hash:        fileHash,
+		}
+		exporter := NewExporterWithDependencies(session, "", mockFS)
+		exporter.processItem(item, history)
+		if got := history.SkippedCount.Get(); got != 1 {
+			t.Errorf("SkippedCount = %d, want 1", got)
+		}
+	})
+
+	t.Run("IgnoredCount increments if file is not exportable", func(t *testing.T) {
+		session := &MockSynologySession{}
+		mockFS := NewMockFileSystem()
+		history := newTestDownloadHistory(nil)
+		item := ExportItem{
+			Type:        synd.ObjectTypeFile,
+			FileID:      ignoredFileID,
+			DisplayPath: ignoredPath,
+			Hash:        fileHash,
+		}
+		exporter := NewExporterWithDependencies(session, "", mockFS)
+		exporter.processItem(item, history)
+		if got := history.IgnoredCount.Get(); got != 1 {
+			t.Errorf("IgnoredCount = %d, want 1", got)
+		}
+	})
+
+	t.Run("ErrorCount increments if export fails", func(t *testing.T) {
+		session := &MockSynologySession{
+			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
+				return nil, errors.New("export failed")
+			},
+		}
+		mockFS := NewMockFileSystem()
+		history := newTestDownloadHistory(nil)
+		item := ExportItem{
+			Type:        synd.ObjectTypeFile,
+			FileID:      fileID2,
+			DisplayPath: "/doc/test2.odoc",
+			Hash:        fileHash2,
+		}
+		exporter := NewExporterWithDependencies(session, "", mockFS)
+		exporter.processItem(item, history)
+		if got := history.ErrorCount.Get(); got != 1 {
+			t.Errorf("ErrorCount = %d, want 1", got)
+		}
+	})
+
+	t.Run("ErrorCount increments if file write fails", func(t *testing.T) {
+		session := &MockSynologySession{
+			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
+				return &synd.ExportResponse{Content: []byte("file content")}, nil
+			},
+		}
+		mockFS := NewMockFileSystem()
+		mockFS.CreateFileFunc = func(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
+			return errors.New("write failed")
+		}
+		history := newTestDownloadHistory(nil)
+		item := ExportItem{
+			Type:        synd.ObjectTypeFile,
+			FileID:      fileID2,
+			DisplayPath: "/doc/test2.odoc",
+			Hash:        fileHash2,
+		}
+		exporter := NewExporterWithDependencies(session, "", mockFS)
+		exporter.processItem(item, history)
+		if got := history.ErrorCount.Get(); got != 1 {
+			t.Errorf("ErrorCount = %d, want 1", got)
+		}
+	})
+}
+
+// TestExportItem_HistoryAndHash covers:
+// 1. Skips download if history exists and hash is the same
+// 2. Downloads if history exists and hash is different
+// 3. Downloads if history does not exist
 func TestExportItem_HistoryAndHash(t *testing.T) {
 	fileID := synd.FileID("file1")
 	fileHashOld := synd.FileHash("hash_old")
@@ -569,8 +698,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 				writeCalled = true
 				return nil
 			}
-			history := &DownloadHistory{Items: make(map[string]DownloadItem)}
-			maps.Copy(history.Items, tc.history)
+			history := newTestDownloadHistory(tc.history)
 			item := ExportItem{
 				Type:        synd.ObjectTypeFile,
 				FileID:      fileID,
@@ -578,10 +706,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 				Hash:        tc.itemHash,
 			}
 			exporter := NewExporterWithDependencies(session, "", mockFS)
-			err := exporter.processItem(item, history, false)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			exporter.processItem(item, history)
 			if writeCalled != tc.expectWrite {
 				t.Errorf("expected write: %v, got: %v", tc.expectWrite, writeCalled)
 			}

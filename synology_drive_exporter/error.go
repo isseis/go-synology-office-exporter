@@ -1,6 +1,23 @@
 package synology_drive_exporter
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+)
+
+// DownloadHistoryOperationError is returned when a download history operation fails.
+type DownloadHistoryOperationError struct {
+	Op  string // operation description
+	Err error  // underlying error
+}
+
+func (e *DownloadHistoryOperationError) Error() string {
+	return fmt.Sprintf("download history operation error [%s]: %v", e.Op, e.Err)
+}
+
+func (e *DownloadHistoryOperationError) Unwrap() error {
+	return e.Err
+}
 
 type DownloadHistoryFileError string
 
@@ -32,8 +49,11 @@ func (e DownloadHistoryParseError) Error() string {
 	return "failed to parse download history JSON: " + strconv.Quote(string(e))
 }
 
-type ExportFileWriteError string
+type ExportFileWriteError struct {
+	Op  string // operation description
+	Err error  // underlying error
+}
 
 func (e ExportFileWriteError) Error() string {
-	return "failed to write export file: " + strconv.Quote(string(e))
+	return fmt.Sprintf("failed to write export file [%s]: %v", e.Op, e.Err)
 }

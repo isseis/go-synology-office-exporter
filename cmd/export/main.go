@@ -15,12 +15,12 @@ const Version = "0.1.0"
 
 func init() {
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, relying on environment variables")
+		fmt.Println("No .env file found, relying on environment variables")
 	}
 }
 
 func main() {
-	log.Println("Starting Synology Office Exporter...")
+	fmt.Println("Starting Synology Office Exporter...")
 
 	// Define command-line flags
 	userFlag := flag.String("user", "", "Synology NAS username")
@@ -57,7 +57,7 @@ func main() {
 	// Check if directory exists
 	if stat, err := os.Stat(downloadDir); err != nil || !stat.IsDir() {
 		if err != nil {
-			log.Printf("Warning: Download directory '%s' does not exist. Attempting to create it.", downloadDir)
+			fmt.Printf("Warning: Download directory '%s' does not exist. Attempting to create it.", downloadDir)
 			if err := os.MkdirAll(downloadDir, 0755); err != nil {
 				log.Fatalf("Failed to create download directory: %v", err)
 			}
@@ -71,7 +71,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to resolve absolute path of download directory: %v", err)
 	}
-	log.Printf("Files will be downloaded to: %s", downloadDir)
+	fmt.Printf("Files will be downloaded to: %s", downloadDir)
 
 	if user == "" || pass == "" || url == "" {
 		log.Fatalf("Missing required parameters: user, pass, and url must be provided either as flags or environment variables")
@@ -84,19 +84,30 @@ func main() {
 	}
 
 	exitCode := 0
-	if err := exporter.ExportMyDrive(); err != nil {
-		exitCode = 1
-		log.Printf("Export failed: %v", err)
+
+	type exportTask struct {
+		name string
+		fn   func() (syndexp.ExportStats, error)
 	}
-	if err := exporter.ExportTeamFolder(); err != nil {
-		exitCode = 1
-		log.Printf("Export failed: %v", err)
+	tasks := []exportTask{
+		{"MyDrive", exporter.ExportMyDrive},
+		{"TeamFolder", exporter.ExportTeamFolder},
+		{"SharedWithMe", exporter.ExportSharedWithMe},
 	}
-	if err := exporter.ExportSharedWithMe(); err != nil {
-		exitCode = 1
-		log.Printf("Export failed: %v", err)
+	for _, task := range tasks {
+		stats, err := task.fn()
+		if err != nil {
+			exitCode = 1
+			fmt.Printf("Export [%s] failed: %v\n", task.name, err)
+			continue
+		}
+		fmt.Printf("[%s] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n",
+			task.name, stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
+		if stats.Errors > 0 {
+			exitCode = 1
+		}
 	}
 
-	log.Println("Export complete")
+	fmt.Println("Export complete")
 	os.Exit(exitCode)
 }

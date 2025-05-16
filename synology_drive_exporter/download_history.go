@@ -14,9 +14,45 @@ import (
 const HISTORY_VERSION = 2
 const HISTORY_MAGIC = "SYNOLOGY_OFFICE_EXPORTER"
 
+type counter struct {
+	count int
+}
+
+func (c *counter) Increment() {
+	c.count++
+}
+
+func (c *counter) Get() int {
+	return c.count
+}
+
+// ExportStats holds the statistics of the export operation.
+type ExportStats struct {
+	Downloaded int // Number of successfully downloaded files
+	Skipped    int // Number of skipped files (already up-to-date)
+	Ignored    int // Number of ignored files (not exportable)
+	Errors     int // Number of errors occurred
+}
+
+// DownloadHistory manages the download state and statistics.
 type DownloadHistory struct {
 	Items map[string]DownloadItem
 	path  string
+
+	DownloadCount counter
+	SkippedCount  counter
+	IgnoredCount  counter
+	ErrorCount    counter
+}
+
+// GetStats returns the current export statistics.
+func (d *DownloadHistory) GetStats() ExportStats {
+	return ExportStats{
+		Downloaded: d.DownloadCount.Get(),
+		Skipped:    d.SkippedCount.Get(),
+		Ignored:    d.IgnoredCount.Get(),
+		Errors:     d.ErrorCount.Get(),
+	}
 }
 
 type jsonHeader struct {
