@@ -57,7 +57,7 @@ func main() {
 	// Check if directory exists
 	if stat, err := os.Stat(downloadDir); err != nil || !stat.IsDir() {
 		if err != nil {
-			log.Printf("Warning: Download directory '%s' does not exist. Attempting to create it.", downloadDir)
+			fmt.Printf("Warning: Download directory '%s' does not exist. Attempting to create it.", downloadDir)
 			if err := os.MkdirAll(downloadDir, 0755); err != nil {
 				log.Fatalf("Failed to create download directory: %v", err)
 			}
@@ -71,7 +71,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to resolve absolute path of download directory: %v", err)
 	}
-	log.Printf("Files will be downloaded to: %s", downloadDir)
+	fmt.Printf("Files will be downloaded to: %s", downloadDir)
 
 	if user == "" || pass == "" || url == "" {
 		log.Fatalf("Missing required parameters: user, pass, and url must be provided either as flags or environment variables")
@@ -87,7 +87,7 @@ func main() {
 
 	if stats, err := exporter.ExportMyDrive(); err != nil {
 		exitCode = 1
-		log.Printf("Export failed: %v", err)
+		fmt.Printf("Export failed: %v", err)
 	} else {
 		fmt.Printf("[MyDrive] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n", stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
 		if stats.Errors > 0 {
@@ -97,7 +97,7 @@ func main() {
 
 	if stats, err := exporter.ExportTeamFolder(); err != nil {
 		exitCode = 1
-		log.Printf("Export failed: %v", err)
+		fmt.Printf("Export failed: %v", err)
 	} else {
 		fmt.Printf("[TeamFolder] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n", stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
 		if stats.Errors > 0 {
@@ -107,7 +107,7 @@ func main() {
 
 	if stats, err := exporter.ExportSharedWithMe(); err != nil {
 		exitCode = 1
-		log.Printf("Export failed: %v", err)
+		fmt.Printf("Export failed: %v", err)
 	} else {
 		fmt.Printf("[SharedWithMe] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n", stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
 		if stats.Errors > 0 {
@@ -115,6 +115,6 @@ func main() {
 		}
 	}
 
-	log.Println("Export complete")
+	fmt.Println("Export complete")
 	os.Exit(exitCode)
 }
