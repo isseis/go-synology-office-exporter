@@ -39,7 +39,7 @@ func parseSources(s string) ([]sourceType, error) {
 	seen := make(map[sourceType]bool)
 
 	for _, part := range parts {
-		part = strings.TrimSpace(strings.ToLower(part))
+		part = strings.TrimSpace(part)
 		var st sourceType
 		switch part {
 		case string(sourceMyDrive):

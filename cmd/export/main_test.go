@@ -39,9 +39,9 @@ func TestParseSources(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:  "case insensitive",
-			input: "MyDrive, TEAMFOLDER",
-			want:  []sourceType{sourceMyDrive, sourceTeamFolder},
+			name:    "case sensitive",
+			input:   "MyDrive",
+			wantErr: true,
 		},
 	}
 
