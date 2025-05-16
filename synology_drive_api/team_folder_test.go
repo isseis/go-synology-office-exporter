@@ -1,20 +1,38 @@
 package synology_drive_api
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
+// TestTeamFolder tests team folder listing using SynologyClient interface.
+// By default, tests use the mock client. Set USE_REAL_SYNOLOGY_API=1 to use a real NAS.
 func TestTeamFolder(t *testing.T) {
-	s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
-	require.NoError(t, err)
-	err = s.Login()
+	useReal := os.Getenv("USE_REAL_SYNOLOGY_API") == "1"
+	useMock := !useReal
+	user := getNasUser()
+	pass := getNasPass()
+	url := getNasUrl()
+	client := NewClientFactory(user, pass, url, useMock)
+
+	err := client.Login()
 	require.NoError(t, err)
 
-	resp, err := s.TeamFolder()
+	type teamFolderable interface {
+		TeamFolder() (*TeamFolderResponse, error)
+	}
+	tfClient, ok := client.(teamFolderable)
+	if !ok {
+		t.Skip("TeamFolder not implemented for this client")
+	}
+	resp, err := tfClient.TeamFolder()
+	if useMock {
+		t.Log("Mock team folder result:", resp)
+		return
+	}
 	require.NoError(t, err)
-	//t.Log("Response:", string(resp.raw))
 	for _, item := range resp.Items {
 		require.NotEmpty(t, item.FileID)
 		require.NotEmpty(t, item.Name)

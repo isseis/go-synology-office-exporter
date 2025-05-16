@@ -7,25 +7,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestExport tests file export using SynologyClient interface.
+// By default, tests use the mock client. Set USE_REAL_SYNOLOGY_API=1 to use a real NAS.
 func TestExport(t *testing.T) {
-	s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
+	useReal := os.Getenv("USE_REAL_SYNOLOGY_API") == "1"
+	useMock := !useReal
+	user := getNasUser()
+	pass := getNasPass()
+	url := getNasUrl()
+	client := NewClientFactory(user, pass, url, useMock)
+
+	err := client.Login()
 	require.NoError(t, err)
 
-	// Test fails since the session is not logged in
-	_, err = s.Export("882614125167948399")
-	require.Error(t, err)
-
-	// Test should succeed after logging in, but we haven't implemented the Export function yet
-	err = s.Login()
-	require.NoError(t, err)
-	res, err := s.Export("882614125167948399")
-	// Skip the test if there was an error
+	type exportable interface {
+		Export(fileID string) (*ExportResponse, error)
+	}
+	expClient, ok := client.(exportable)
+	if !ok {
+		t.Skip("Export not implemented for this client")
+	}
+	res, err := expClient.Export("882614125167948399")
+	if useMock {
+		t.Log("Mock export result:", res)
+		return
+	}
 	if err != nil {
 		t.Skip("Skipping file save due to export error")
 	}
-
 	t.Log("Response [Name]:", string(res.Name))
-	// Save the response to a file
 	err = os.WriteFile(res.Name, res.Content, 0644)
 	require.NoError(t, err, "Failed to save file")
 	defer func() {

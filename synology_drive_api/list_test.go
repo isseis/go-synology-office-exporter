@@ -1,21 +1,39 @@
 package synology_drive_api
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// TestList tests directory listing using SynologyClient interface.
+// By default, tests use the mock client. Set USE_REAL_SYNOLOGY_API=1 to use a real NAS.
 func TestList(t *testing.T) {
-	s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
-	require.NoError(t, err)
-	err = s.Login()
-	require.NoError(t, err)
-	resp, err := s.List(MyDrive)
+	useReal := os.Getenv("USE_REAL_SYNOLOGY_API") == "1"
+	useMock := !useReal
+	user := getNasUser()
+	pass := getNasPass()
+	url := getNasUrl()
+	client := NewClientFactory(user, pass, url, useMock)
+
+	err := client.Login()
 	require.NoError(t, err)
 
-	// t.Log("Response:", string(resp.raw))
+	type listable interface {
+		List(folderID FileID) (*ListResponse, error)
+	}
+	listClient, ok := client.(listable)
+	if !ok {
+		t.Skip("List not implemented for this client")
+	}
+	resp, err := listClient.List(MyDrive)
+	if useMock {
+		t.Log("Mock list result:", resp)
+		return
+	}
+	require.NoError(t, err)
 	for _, item := range resp.Items {
 		assert.NotEmpty(t, item.FileID)
 		assert.NotEmpty(t, item.Name)

@@ -20,6 +20,7 @@ var RequestOptionJSON = RequestOption{
 }
 
 // SynologySession represents a session with a Synology NAS
+// Implements SynologyClient for interface-based testing and mocking.
 type SynologySession struct {
 	username    string      // Username for login on Synology NAS
 	password    string      // Password for login on Synology NAS
@@ -39,6 +40,8 @@ type SynologySession struct {
 // Returns:
 //   - *SynologySession: A new session object
 //   - error: An error of type InvalidUrlError if the URL is invalid
+//
+// Implements SynologyClient.
 func NewSynologySession(username string, password string, base_url string) (*SynologySession, error) {
 	parsed, err := url.Parse(base_url)
 	if err != nil {

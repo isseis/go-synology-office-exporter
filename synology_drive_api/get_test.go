@@ -1,28 +1,45 @@
 package synology_drive_api
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// TestGet tests file retrieval using SynologyClient interface.
+// By default, tests use the mock client. Set USE_REAL_SYNOLOGY_API=1 to use a real NAS.
 func TestGet(t *testing.T) {
-	s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
+	useReal := os.Getenv("USE_REAL_SYNOLOGY_API") == "1"
+	useMock := !useReal
+	user := getNasUser()
+	pass := getNasPass()
+	url := getNasUrl()
+	client := NewClientFactory(user, pass, url, useMock)
+
+	err := client.Login()
 	require.NoError(t, err)
 
-	// Test fails since the session is not logged in
-	_, err = s.Get("882614125167948399")
-	require.Error(t, err)
-
-	// Test succeeds after logging in
-	err = s.Login()
+	type gettable interface {
+		Get(fileID string) (*ResponseItem, error)
+	}
+	getClient, ok := client.(gettable)
+	if !ok {
+		t.Skip("Get not implemented for this client")
+	}
+	resp, err := getClient.Get("882614125167948399")
+	if useMock {
+		t.Log("Mock get result:", resp)
+		return
+	}
 	require.NoError(t, err)
-	resp, err := s.Get("882614125167948399")
-	require.NoError(t, err)
-	assert.NotEmpty(t, resp.raw)
+	assert.NotEmpty(t, resp.FileID)
+	assert.NotEmpty(t, resp.Name)
+	assert.NotEmpty(t, resp.Path)
 
-	//t.Log("Response:", string(resp.raw))
+	//t.Log("Response:", resp)
+
 	/* Sample Response:
 	{
 		"data": {

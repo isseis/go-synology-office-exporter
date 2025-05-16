@@ -5,7 +5,7 @@ GO_BUILD := go build
 GO_TEST := go test
 
 # Declare phony targets that don't produce files
-.PHONY: build test clean run pre-commit
+.PHONY: build test test-full clean run pre-commit
 
 # Build the export command
 build:
@@ -16,9 +16,11 @@ pre-commit:
 
 # Run tests, specifically library unit tests
 test:
-	$(GO_TEST) ./cmd/export/...
-	$(GO_TEST) ./synology_drive_api/...
-	$(GO_TEST) ./synology_drive_exporter/...
+	$(GO_TEST) ./...
+
+test-full: test
+	USE_REAL_SYNOLOGY_API=1 $(GO_TEST) ./synology_drive_api/...
+
 
 # Clean up automatically generated files
 clean:

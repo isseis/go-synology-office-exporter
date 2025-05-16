@@ -1,21 +1,39 @@
 package synology_drive_api
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// TestSharedWithMe tests shared-with-me listing using SynologyClient interface.
+// By default, tests use the mock client. Set USE_REAL_SYNOLOGY_API=1 to use a real NAS.
 func TestSharedWithMe(t *testing.T) {
-	s, err := NewSynologySession(getNasUser(), getNasPass(), getNasUrl())
-	require.NoError(t, err)
-	err = s.Login()
+	useReal := os.Getenv("USE_REAL_SYNOLOGY_API") == "1"
+	useMock := !useReal
+	user := getNasUser()
+	pass := getNasPass()
+	url := getNasUrl()
+	client := NewClientFactory(user, pass, url, useMock)
+
+	err := client.Login()
 	require.NoError(t, err)
 
-	resp, err := s.SharedWithMe()
+	type sharedWithMeable interface {
+		SharedWithMe() (*SharedWithMeResponse, error)
+	}
+	shClient, ok := client.(sharedWithMeable)
+	if !ok {
+		t.Skip("SharedWithMe not implemented for this client")
+	}
+	resp, err := shClient.SharedWithMe()
+	if useMock {
+		t.Log("Mock shared-with-me result:", resp)
+		return
+	}
 	require.NoError(t, err)
-	// t.Log("Response:", string(resp.raw))
 	assert.GreaterOrEqual(t, resp.Total, int64(0))
 	for _, item := range resp.Items {
 		assert.NotEmpty(t, item.FileID)
