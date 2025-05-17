@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
@@ -652,6 +653,94 @@ func TestExporter_Counts(t *testing.T) {
 // 2. Downloads if history exists and hash is different
 // 3. Downloads if history does not exist
 func TestExportItem_HistoryAndHash(t *testing.T) {
+	// --- DownloadStatus unit tests ---
+	t.Run("StatusDownloaded when new", func(t *testing.T) {
+		session := &MockSynologySession{
+			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
+				return &synd.ExportResponse{Content: []byte("file content")}, nil
+			},
+		}
+		mockFS := NewMockFileSystem()
+		history := newTestDownloadHistory(nil)
+		item := ExportItem{
+			Type:        synd.ObjectTypeFile,
+			FileID:      "file1",
+			DisplayPath: "/doc/test1.odoc",
+			Hash:        "hash1",
+		}
+		exporter := NewExporterWithDependencies(session, "", mockFS)
+		exporter.processFile(item, history)
+		path := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(item.DisplayPath)), "/")
+		status := history.Items[path].DownloadStatus
+		if status != StatusDownloaded {
+			t.Errorf("expected StatusDownloaded, got %v", status)
+		}
+	})
+
+	t.Run("StatusSkipped when hash unchanged", func(t *testing.T) {
+		item := ExportItem{
+			Type:        synd.ObjectTypeFile,
+			FileID:      "file1",
+			DisplayPath: "/doc/test1.odoc",
+			Hash:        "hash1",
+		}
+		path := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(item.DisplayPath)), "/")
+		initialTime := time.Date(2024, 5, 18, 8, 0, 0, 0, time.UTC)
+		history := newTestDownloadHistory(map[string]DownloadItem{
+			path: {FileID: "file1", Hash: "hash1", DownloadStatus: StatusLoaded, DownloadTime: initialTime},
+		})
+		session := &MockSynologySession{
+			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
+				return &synd.ExportResponse{Content: []byte("file content")}, nil
+			},
+		}
+		mockFS := NewMockFileSystem()
+		exporter := NewExporterWithDependencies(session, "", mockFS)
+		exporter.processFile(item, history)
+		status := history.Items[path].DownloadStatus
+		if status != StatusSkipped {
+			t.Errorf("expected StatusSkipped, got %v", status)
+		}
+		if !history.Items[path].DownloadTime.Equal(initialTime) {
+			t.Errorf("expected DownloadTime to remain unchanged, got %v want %v", history.Items[path].DownloadTime, initialTime)
+		}
+	})
+
+	// --- Integration test: coexistence of loaded, downloaded, skipped ---
+	t.Run("StatusLoaded, StatusDownloaded, StatusSkipped coexistence", func(t *testing.T) {
+		// Setup: 3 files in history, only 2 are present in exportItems
+		item1 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file1", DisplayPath: "/doc/test1.odoc", Hash: "hash1"}     // hash unchanged
+		item2 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file2", DisplayPath: "/doc/test2.odoc", Hash: "hash2-new"} // hash changed
+		item3 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file3", DisplayPath: "/doc/test3.odoc", Hash: "hash3"}     // only in history
+		path1 := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(item1.DisplayPath)), "/")
+		path2 := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(item2.DisplayPath)), "/")
+		path3 := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(item3.DisplayPath)), "/")
+		history := newTestDownloadHistory(map[string]DownloadItem{
+			path1: {FileID: "file1", Hash: "hash1", DownloadStatus: StatusLoaded},
+			path2: {FileID: "file2", Hash: "hash2-old", DownloadStatus: StatusLoaded},
+			path3: {FileID: "file3", Hash: "hash3", DownloadStatus: StatusLoaded},
+		})
+		session := &MockSynologySession{
+			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
+				return &synd.ExportResponse{Content: []byte("file content")}, nil
+			},
+		}
+		mockFS := NewMockFileSystem()
+		exporter := NewExporterWithDependencies(session, "", mockFS)
+		exporter.processFile(item1, history) // should become skipped
+		exporter.processFile(item2, history) // should become downloaded
+		// item3 not processed, remains loaded
+		if history.Items[path1].DownloadStatus != StatusSkipped {
+			t.Errorf("expected StatusSkipped for item1, got %v", history.Items[path1].DownloadStatus)
+		}
+		if history.Items[path2].DownloadStatus != StatusDownloaded {
+			t.Errorf("expected StatusDownloaded for item2, got %v", history.Items[path2].DownloadStatus)
+		}
+		if history.Items[path3].DownloadStatus != StatusLoaded {
+			t.Errorf("expected StatusLoaded for item3, got %v", history.Items[path3].DownloadStatus)
+		}
+	})
+
 	fileID := synd.FileID("file1")
 	fileHashOld := synd.FileHash("hash_old")
 	fileHashNew := synd.FileHash("hash_new")
