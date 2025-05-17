@@ -41,6 +41,12 @@ var cannedResponseListFiles []byte
 //go:embed data/files_get_response.json
 var cannedResponseGetFile []byte
 
+//go:embed data/files_shared_with_me_response.json
+var cannedResponseSharedWithMe []byte
+
+//go:embed data/team_folders_list_response.json
+var cannedResponseTeamFolders []byte
+
 func mockSynologyHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[MOCK] %s %s\n", r.Method, r.URL.String())
 	switch r.URL.Path {
@@ -73,9 +79,15 @@ func mockSynologyHandler(w http.ResponseWriter, r *http.Request) {
 		if api == APINameSynologyDriveFiles && method == "list" {
 			w.Write(cannedResponseListFiles)
 			return
-		} else if method == "get" {
+		} else if api == APINameSynologyDriveFiles && method == "get" {
 			w.Header().Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
 			w.Write(cannedResponseGetFile)
+			return
+		} else if api == APINameSynologyDriveFiles && method == "shared_with_me" {
+			w.Write(cannedResponseSharedWithMe)
+			return
+		} else if api == APINameSynologyDriveTeamFolders && method == "list" {
+			w.Write(cannedResponseTeamFolders)
 			return
 		} else {
 			resp := map[string]any{
