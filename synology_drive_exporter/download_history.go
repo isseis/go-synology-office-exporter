@@ -48,9 +48,6 @@ type DownloadHistory struct {
 // ErrHistoryItemNotFound is returned when the specified item does not exist in the history.
 var ErrHistoryItemNotFound = fmt.Errorf("download history item not found")
 
-// ErrHistoryItemAlreadyExists is returned when trying to add an item that already exists.
-var ErrHistoryItemAlreadyExists = fmt.Errorf("download history item already exists")
-
 // ErrHistoryInvalidStatus is returned when the item's status does not match the expected state.
 var ErrHistoryInvalidStatus = fmt.Errorf("download history item status is invalid")
 
