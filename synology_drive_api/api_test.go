@@ -1,6 +1,7 @@
 package synology_drive_api
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -34,6 +35,18 @@ func ResetMockLogin() {
 	mockLoggedIn = false
 }
 
+//go:embed data/files_list_response.json
+var cannedResponseListFiles []byte
+
+//go:embed data/files_get_response.json
+var cannedResponseGetFile []byte
+
+//go:embed data/files_shared_with_me_response.json
+var cannedResponseSharedWithMe []byte
+
+//go:embed data/team_folders_list_response.json
+var cannedResponseTeamFolders []byte
+
 func mockSynologyHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[MOCK] %s %s\n", r.Method, r.URL.String())
 	switch r.URL.Path {
@@ -52,46 +65,39 @@ func mockSynologyHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`{"success": false, "error": {"code": 100}}`))
 		}
 	case "/webapi/entry.cgi":
+		api := StringToAPIName(r.URL.Query().Get("api"))
 		method := r.URL.Query().Get("method")
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		switch method {
-		case "get":
-			if !mockLoggedIn {
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(`{"success": false, "error": {"code": 119, "errors": {"line": 0, "message": "not logged in"}}}`))
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-			resp := map[string]interface{}{
+		if !mockLoggedIn {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"success": false, "error": {"code": 119, "errors": {"line": 0, "message": "not logged in"}}}`))
+			return
+		}
+
+		if api == APINameSynologyDriveFiles && method == "list" {
+			w.Write(cannedResponseListFiles)
+			return
+		} else if api == APINameSynologyDriveFiles && method == "get" {
+			w.Write(cannedResponseGetFile)
+			return
+		} else if api == APINameSynologyDriveFiles && method == "shared_with_me" {
+			w.Write(cannedResponseSharedWithMe)
+			return
+		} else if api == APINameSynologyDriveTeamFolders && method == "list" {
+			w.Write(cannedResponseTeamFolders)
+			return
+		} else {
+			resp := map[string]any{
 				"success": true,
-				"data": map[string]interface{}{
-					"file_id":      "882614125167948399",
-					"name":         "planning.osheet",
-					"type":         "file",
-					"content_type": "document",
-					"size":         720,
-					"owner":        map[string]interface{}{"display_name": "backup", "name": "backup", "uid": 1029},
-					"starred":      false,
-					"shared":       false,
-					"path":         "/planning.osheet",
-					"display_path": "/mydrive/planning.osheet",
-					"raw":          "dummyrawdata",
-				},
+				"data":    map[string]any{},
 			}
 			json.NewEncoder(w).Encode(resp)
 			return
-		default:
-			w.WriteHeader(http.StatusOK)
-			resp := map[string]interface{}{
-				"success": true,
-				"data":    map[string]interface{}{},
-			}
-			json.NewEncoder(w).Encode(resp)
 		}
+
 	default:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"success": true}`))
 	}
 }
@@ -99,16 +105,6 @@ func mockSynologyHandler(w http.ResponseWriter, r *http.Request) {
 // getEnvOrPanic returns environment variables for test credentials and URL.
 // By default, returns mock values unless USE_REAL_SYNOLOGY is set.
 func getEnvOrPanic(key string) string {
-	if os.Getenv("USE_REAL_SYNOLOGY") == "" {
-		switch key {
-		case "SYNOLOGY_NAS_USER":
-			return "mock-user"
-		case "SYNOLOGY_NAS_PASS":
-			return "mock-pass"
-		case "SYNOLOGY_NAS_URL":
-			return os.Getenv("SYNOLOGY_NAS_URL")
-		}
-	}
 	if value, exists := os.LookupEnv(key); !exists {
 		panic(key + " is not set")
 	} else {

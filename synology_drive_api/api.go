@@ -89,6 +89,22 @@ const (
 	APINameSynologyOfficeExport     APIName = "SYNO.Office.Export"
 )
 
+func isValidAPIName(api APIName) bool {
+	switch api {
+	case APINameSynologyDriveFiles, APINameSynologyDriveTeamFolders, APINameSynologyAPIAuth, APINameSynologyOfficeExport:
+		return true
+	default:
+		return false
+	}
+}
+
+func StringToAPIName(s string) APIName {
+	if !isValidAPIName(APIName(s)) {
+		return ""
+	}
+	return APIName(s)
+}
+
 // MyDrive represents the root folder identifier in Synology Drive
 const MyDrive = FileID("/mydrive/")
 
