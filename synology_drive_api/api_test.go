@@ -172,6 +172,70 @@ const cannedResponseListFiles = `
 	"success": true
 }`
 
+const cannedResponseGetFile = `
+{
+	"data": {
+		"access_time": 1746357311,
+		"adv_shared": false,
+		"app_properties": {"type": "none"},
+		"capabilities": {
+			"can_comment": true,
+			"can_delete": true,
+			"can_download": true,
+			"can_encrypt": true,
+			"can_organize": true,
+			"can_preview": true,
+			"can_read": true,
+			"can_rename": true,
+			"can_share": true,
+			"can_sync": true,
+			"can_write": true
+		},
+		"change_id": 17,
+		"change_time": 1746239530,
+		"content_snippet": "",
+		"content_type": "document",
+		"created_time": 1746239207,
+		"disable_download": false,
+		"display_path": "/mydrive/planning.osheet",
+		"dsm_path": "",
+		"enable_watermark": false,
+		"encrypted": false,
+		"file_id": "882614125167948399",
+		"force_watermark_download": false,
+		"hash": "7dd71dd1192ca985884d934470fb9d3c",
+		"image_metadata": {"time": 1746239207},
+		"labels": [],
+		"max_id": 17,
+		"modified_time": 1746239207,
+		"name": "planning.osheet",
+		"owner": {
+			"display_name": "backup",
+			"name": "backup",
+			"nickname": "",
+			"uid": 1029
+		},
+		"parent_id": "880423525918227781",
+		"path": "/planning.osheet",
+		"permanent_link": "13CNgcuVDEENCkSfDkcKpr39pcK6hhPD",
+		"properties": {"object_id": "1029_ELSD3CRAC557FDOVULJJJDKN50.sh"},
+		"removed": false,
+		"revisions": 3,
+		"shared": false,
+		"shared_with": [],
+		"size": 720,
+		"starred": false,
+		"support_remote": false,
+		"sync_id": 17,
+		"sync_to_device": false,
+		"transient": false,
+		"type": "file",
+		"version_id": "17",
+		"watermark_version": 0
+	},
+	"success": true
+}`
+
 func mockSynologyHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[MOCK] %s %s\n", r.Method, r.URL.String())
 	switch r.URL.Path {
@@ -190,43 +254,25 @@ func mockSynologyHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`{"success": false, "error": {"code": 100}}`))
 		}
 	case "/webapi/entry.cgi":
-		// TODO: Validate API name
-		api := APIName(r.URL.Query().Get("api"))
+		api := StringToAPIName(r.URL.Query().Get("api"))
 		method := r.URL.Query().Get("method")
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		if !mockLoggedIn {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"success": false, "error": {"code": 119, "errors": {"line": 0, "message": "not logged in"}}}`))
+			return
+		}
 
 		if api == APINameSynologyDriveFiles && method == "list" {
 			w.Write([]byte(cannedResponseListFiles))
 			return
 		} else if method == "get" {
-			if !mockLoggedIn {
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(`{"success": false, "error": {"code": 119, "errors": {"line": 0, "message": "not logged in"}}}`))
-				return
-			}
-			// TODO: Set appropriate Content-Type
-			w.WriteHeader(http.StatusOK)
-			resp := map[string]any{
-				"success": true,
-				"data": map[string]any{
-					"file_id":      "882614125167948399",
-					"name":         "planning.osheet",
-					"type":         "file",
-					"content_type": "document",
-					"size":         720,
-					"owner":        map[string]any{"display_name": "backup", "name": "backup", "uid": 1029},
-					"starred":      false,
-					"shared":       false,
-					"path":         "/planning.osheet",
-					"display_path": "/mydrive/planning.osheet",
-					"raw":          "dummyrawdata",
-				},
-			}
-			json.NewEncoder(w).Encode(resp)
+			w.Header().Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+			w.Write([]byte(cannedResponseGetFile))
 			return
 		} else {
-			w.WriteHeader(http.StatusOK)
 			resp := map[string]any{
 				"success": true,
 				"data":    map[string]any{},
@@ -236,8 +282,6 @@ func mockSynologyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 	default:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"success": true}`))
 	}
 }
