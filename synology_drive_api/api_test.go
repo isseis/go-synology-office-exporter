@@ -63,6 +63,7 @@ func mockSynologyHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleMockAuth processes login and logout requests for the mock Synology NAS API.
+// It sets HTTP status codes and writes mock JSON responses for both login and logout methods.
 func handleMockAuth(w http.ResponseWriter, r *http.Request) {
 	method := r.URL.Query().Get("method")
 	w.WriteHeader(http.StatusOK)
