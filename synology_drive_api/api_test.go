@@ -2,7 +2,6 @@ package synology_drive_api
 
 import (
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -47,58 +46,63 @@ var cannedResponseSharedWithMe []byte
 //go:embed data/team_folders_list_response.json
 var cannedResponseTeamFolders []byte
 
+// mockSynologyHandler handles HTTP requests to the mock Synology NAS API.
+// It delegates authentication and entry handling to helper functions for clarity.
 func mockSynologyHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[MOCK] %s %s\n", r.Method, r.URL.String())
+	w.Header().Set("Content-Type", "application/json")
+
 	switch r.URL.Path {
 	case "/webapi/auth.cgi":
-		method := r.URL.Query().Get("method")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		switch method {
-		case "login":
-			mockLoggedIn = true
-			w.Write([]byte(`{"success": true, "data": {"sid": "mock-sid"}}`))
-		case "logout":
-			mockLoggedIn = false
-			w.Write([]byte(`{"success": true}`))
-		default:
-			w.Write([]byte(`{"success": false, "error": {"code": 100}}`))
-		}
+		handleMockAuth(w, r)
 	case "/webapi/entry.cgi":
-		api := StringToAPIName(r.URL.Query().Get("api"))
-		method := r.URL.Query().Get("method")
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if !mockLoggedIn {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"success": false, "error": {"code": 119, "errors": {"line": 0, "message": "not logged in"}}}`))
-			return
-		}
-
-		if api == APINameSynologyDriveFiles && method == "list" {
-			w.Write(cannedResponseListFiles)
-			return
-		} else if api == APINameSynologyDriveFiles && method == "get" {
-			w.Write(cannedResponseGetFile)
-			return
-		} else if api == APINameSynologyDriveFiles && method == "shared_with_me" {
-			w.Write(cannedResponseSharedWithMe)
-			return
-		} else if api == APINameSynologyDriveTeamFolders && method == "list" {
-			w.Write(cannedResponseTeamFolders)
-			return
-		} else {
-			resp := map[string]any{
-				"success": true,
-				"data":    map[string]any{},
-			}
-			json.NewEncoder(w).Encode(resp)
-			return
-		}
-
+		handleMockEntry(w, r)
 	default:
 		w.Write([]byte(`{"success": true}`))
+	}
+}
+
+// handleMockAuth processes login and logout requests for the mock Synology NAS API.
+func handleMockAuth(w http.ResponseWriter, r *http.Request) {
+	method := r.URL.Query().Get("method")
+	w.WriteHeader(http.StatusOK)
+	switch method {
+	case "login":
+		mockLoggedIn = true
+		w.Write([]byte(`{"success": true, "data": {"sid": "mock-sid"}}`))
+	case "logout":
+		mockLoggedIn = false
+		w.Write([]byte(`{"success": true}`))
+	default:
+		w.Write([]byte(`{"success": false, "error": {"code": 100}}`))
+	}
+}
+
+// handleMockEntry processes API requests to /webapi/entry.cgi for the mock Synology NAS API.
+func handleMockEntry(w http.ResponseWriter, r *http.Request) {
+
+	// Early return if not logged in
+	if !mockLoggedIn {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"success": false, "error": {"code": 119, "errors": {"line": 0, "message": "not logged in"}}}`))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	api := StringToAPIName(r.URL.Query().Get("api"))
+	method := r.URL.Query().Get("method")
+	switch {
+	case api == APINameSynologyDriveFiles && method == "list":
+		w.Write(cannedResponseListFiles)
+	case api == APINameSynologyDriveFiles && method == "get":
+		w.Write(cannedResponseGetFile)
+	case api == APINameSynologyDriveFiles && method == "shared_with_me":
+		w.Write(cannedResponseSharedWithMe)
+	case api == APINameSynologyDriveTeamFolders && method == "list":
+		w.Write(cannedResponseTeamFolders)
+	default:
+		w.Write([]byte(`{"success": true, "data": {}}`))
 	}
 }
 
