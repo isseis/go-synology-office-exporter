@@ -80,7 +80,6 @@ func mockSynologyHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write(cannedResponseListFiles)
 			return
 		} else if api == APINameSynologyDriveFiles && method == "get" {
-			w.Header().Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
 			w.Write(cannedResponseGetFile)
 			return
 		} else if api == APINameSynologyDriveFiles && method == "shared_with_me" {
