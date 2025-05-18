@@ -17,7 +17,6 @@ pre-commit:
 # Run unit tests (excludes integration tests)
 test: test-unit
 
-# Run unit tests (excludes integration tests)
 test-unit:
 	$(GO_TEST) ./cmd/export/...
 	$(GO_TEST) ./download_history/...
