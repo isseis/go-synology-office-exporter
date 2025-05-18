@@ -29,5 +29,3 @@ func TestDownloadHistoryBasic(t *testing.T) {
 		t.Errorf("SetItem or Items failed: got %+v", got)
 	}
 }
-
-// 他のテストも同様に移動・修正してください

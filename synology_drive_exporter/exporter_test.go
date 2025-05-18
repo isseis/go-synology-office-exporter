@@ -14,11 +14,10 @@ import (
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
+// MockFileSystem is a mock implementation of FileSystemOperations for testing.
 type MockFileSystem struct {
 	CreateFileFunc func(string, []byte, os.FileMode, os.FileMode) error
-	// Records created directories and files
-	CreatedDirs  []string
-	WrittenFiles map[string][]byte
+	WrittenFiles   map[string][]byte
 }
 
 func NewMockFileSystem() *MockFileSystem {
@@ -30,20 +29,17 @@ func NewMockFileSystem() *MockFileSystem {
 	}
 }
 
+// CreateFile simulates file creation for testing. It records written files in WrittenFiles.
 func (m *MockFileSystem) CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
 	if m.CreateFileFunc != nil {
 		err := m.CreateFileFunc(filename, data, dirPerm, filePerm)
 		if err == nil {
-			dir := filepath.Dir(filename)
-			m.CreatedDirs = append(m.CreatedDirs, dir)
 			m.WrittenFiles[filename] = data
 		}
 		return err
 	}
 
-	// If no custom function provided, create directory and write file
-	dir := filepath.Dir(filename)
-	m.CreatedDirs = append(m.CreatedDirs, dir)
+	// If no custom function is provided, simulate file writing.
 	m.WrittenFiles[filename] = data
 	return nil
 }
@@ -93,11 +89,11 @@ func TestExporterExportMyDrive(t *testing.T) {
 		fileOperationError error
 		expectedError      bool
 		expectedFiles      int
-		// Track directory IDs that have been listed
+		// trackedListCalls tracks directory IDs listed during recursive traversal.
 		trackedListCalls map[synd.FileID]bool
-		// Map of directory ID to list response for recursive directory traversal
+		// directoryResponses maps directory IDs to list responses for recursive traversal.
 		directoryResponses map[synd.FileID]*synd.ListResponse
-		// Map of directory ID to list error for recursive directory traversal
+		// directoryErrors maps directory IDs to list errors for recursive traversal.
 		directoryErrors map[synd.FileID]error
 	}{
 		{
@@ -522,13 +518,12 @@ func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFil
 	// Implementation omitted for this test; see above for details.
 }
 
-// makeTestKey generates a key for the given display path for testing purposes.
-// This is a test helper function and should only be used in tests.
+// makeTestKey is a test helper that generates a key for a given display path.
 func makeTestKey(displayPath string) string {
 	return strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(displayPath)), "/")
 }
 
-// TestExporter_Counts verifies that download_history.NewDownloadHistory's counters are incremented correctly.
+// TestExporter_Counts verifies that DownloadHistory counters are incremented correctly during export.
 func TestExporter_Counts(t *testing.T) {
 	fileID := synd.FileID("file1")
 	fileHash := synd.FileHash("hash1")
@@ -652,10 +647,7 @@ func TestExporter_Counts(t *testing.T) {
 	})
 }
 
-// TestExportItem_HistoryAndHash covers:
-// 1. Skips download if history exists and hash is the same
-// 2. Downloads if history exists and hash is different
-// 3. Downloads if history does not exist
+// TestExportItem_HistoryAndHash covers download and skip logic based on history and hash values.
 func TestExportItem_HistoryAndHash(t *testing.T) {
 	// --- DownloadStatus unit tests ---
 	t.Run("download_history.StatusDownloaded when new", func(t *testing.T) {

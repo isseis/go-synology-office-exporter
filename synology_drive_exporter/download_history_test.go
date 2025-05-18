@@ -14,8 +14,6 @@ import (
 	"github.com/isseis/go-synology-office-exporter/download_history"
 )
 
-// Testdownload_history.NewDownloadHistory verifies that download_history.NewDownloadHistory correctly validates filenames
-// and returns appropriate errors for invalid filenames.
 func TestDownloadHistoryStatusMethods(t *testing.T) {
 	baseTime := time.Now().Truncate(time.Second)
 	itemLoaded := download_history.DownloadItem{
@@ -81,8 +79,6 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 	})
 }
 
-// TestNewDownloadHistory verifies that download_history.NewDownloadHistory correctly validates filenames
-// and returns appropriate errors for invalid filenames.
 func TestNewDownloadHistory(t *testing.T) {
 	t.Run("Valid filename", func(t *testing.T) {
 		validNames := []string{
@@ -317,8 +313,7 @@ func TestLoad(t *testing.T) {
 	})
 }
 
-// TestSaveToWriter verifies the functionality of saveToWriter method
-// by testing both successful and error scenarios.
+// TestSaveToWriter tests SaveToWriter for successful and error cases, including output validation and error propagation.
 func TestSaveToWriter(t *testing.T) {
 	// Create a history instance with test data for testing
 	history, err := download_history.NewDownloadHistory("dummy.json")
@@ -389,8 +384,7 @@ func TestSaveToWriter(t *testing.T) {
 	})
 }
 
-// TestSave verifies the functionality of Save method
-// by testing both successful and error scenarios.
+// TestSave tests the Save method for successful file creation, content validation, and error scenarios such as file creation failure or permission issues.
 func TestSave(t *testing.T) {
 	// Test successful case
 	t.Run("Successful save", func(t *testing.T) {
@@ -477,7 +471,7 @@ func TestSave(t *testing.T) {
 	})
 }
 
-// mockErrorWriter is a mock io.Writer that always returns an error
+// mockErrorWriter is a test helper that implements io.Writer and always returns an error on Write.
 type mockErrorWriter struct{}
 
 func (m *mockErrorWriter) Write(p []byte) (n int, err error) {

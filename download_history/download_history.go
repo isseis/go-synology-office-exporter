@@ -120,6 +120,7 @@ func (d *DownloadHistory) GetItemByDisplayPath(displayPath string) (DownloadItem
 	return item, exists
 }
 
+// jsonHeader is used for marshaling/unmarshaling metadata for download history JSON files.
 type jsonHeader struct {
 	Version int    `json:"version"`
 	Magic   string `json:"magic"`
@@ -179,6 +180,7 @@ func NewDownloadHistory(path string) (*DownloadHistory, error) {
 	return history, nil
 }
 
+// validate checks that the JSON header matches the expected version and magic string.
 func (hdr *jsonHeader) validate() error {
 	if hdr.Version != HISTORY_VERSION {
 		return fmt.Errorf("unsupported version: %d", hdr.Version)
@@ -190,6 +192,7 @@ func (hdr *jsonHeader) validate() error {
 }
 
 // loadFromReader loads DownloadItems from JSON and sets Status to "loaded" if not present.
+// loadFromReader is a private helper that loads DownloadItems from JSON and sets Status to "loaded" if not present.
 func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 	content, err := io.ReadAll(r)
 	if err != nil {
@@ -210,11 +213,11 @@ func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 		if err != nil {
 			return fmt.Errorf("failed to parse download time: %s", err.Error())
 		}
-		// Check if the location is already in the map
+		// Prevent duplicate locations in the history map.
 		if _, exists := d.Items[item.Location]; exists {
 			return fmt.Errorf("duplicate location: %s", item.Location)
 		}
-		// Always initialize Status as StatusLoaded on load
+		// Set DownloadStatus to StatusLoaded on load to reflect state from file.
 		d.Items[item.Location] = DownloadItem{
 			FileID:         item.FileID,
 			Hash:           item.Hash,
@@ -229,7 +232,7 @@ func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 // Load reads download history from the JSON file specified.
 // It returns an error if the file cannot be opened or contains invalid data.
 func (d *DownloadHistory) Load() error {
-	// If the file does not exist, we can just behave as if there is no history
+	// If the file does not exist, treat as no history (not an error).
 	if _, err := os.Stat(d.path); os.IsNotExist(err) {
 		return nil
 	}
@@ -243,6 +246,7 @@ func (d *DownloadHistory) Load() error {
 }
 
 // saveToWriter writes DownloadItems to JSON.
+// saveToWriter is a private helper that writes DownloadItems to JSON.
 func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 	header := jsonHeader{
 		Version: HISTORY_VERSION,
