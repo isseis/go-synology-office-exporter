@@ -135,7 +135,7 @@ func main() {
 	}
 
 	fmt.Printf("Synology Office Exporter v%s\n", Version)
-	exporter, err := syndexp.NewExporter(user, pass, url, downloadDir, *dryRunFlag)
+	exporter, err := syndexp.NewExporter(user, pass, url, downloadDir, syndexp.WithDryRun(*dryRunFlag))
 	if err != nil {
 		log.Fatalf("Failed to create exporter: %v", err)
 	}

@@ -94,7 +94,19 @@ type Exporter struct {
 	fs          FileSystemOperations
 
 	// dryRun controls whether file operations are performed. Immutable after construction.
+	// Default is false.
 	dryRun bool
+}
+
+// ExporterOption defines a function type to set options for Exporter.
+// Use WithDryRun and similar helpers to specify runtime options.
+type ExporterOption func(*Exporter)
+
+// WithDryRun sets the dryRun option for Exporter.
+func WithDryRun(dryRun bool) ExporterOption {
+	return func(e *Exporter) {
+		e.dryRun = dryRun
+	}
 }
 
 // IsDryRun returns true if the exporter is in dry-run mode.
@@ -103,9 +115,8 @@ func (e *Exporter) IsDryRun() bool {
 }
 
 // NewExporter constructs an Exporter with a real Synology session and the specified download directory. If downloadDir is empty, the current directory is used.
-// NewExporter constructs an Exporter with a real Synology session and the specified download directory. If downloadDir is empty, the current directory is used.
-// The dryRun parameter controls whether file operations are performed.
-func NewExporter(username string, password string, base_url string, downloadDir string, dryRun bool) (*Exporter, error) {
+// Additional runtime options can be specified via ExporterOption(s), such as WithDryRun.
+func NewExporter(username string, password string, base_url string, downloadDir string, opts ...ExporterOption) (*Exporter, error) {
 	session, err := synd.NewSynologySession(username, password, base_url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -113,20 +124,24 @@ func NewExporter(username string, password string, base_url string, downloadDir 
 	if err = session.Login(); err != nil {
 		return nil, fmt.Errorf("failed to login: %w", err)
 	}
-	exporter := NewExporterWithDependencies(session, downloadDir, &DefaultFileSystem{}, dryRun)
+	exporter := NewExporterWithDependencies(session, downloadDir, &DefaultFileSystem{}, opts...)
 	return exporter, nil
 }
 
 // NewExporterWithDependencies constructs an Exporter with injected dependencies for session, download directory, and file system. Intended for testing and advanced use.
-// NewExporterWithDependencies constructs an Exporter with injected dependencies for session, download directory, and file system. Intended for testing and advanced use.
-// The dryRun parameter controls whether file operations are performed.
-func NewExporterWithDependencies(session SessionInterface, downloadDir string, fs FileSystemOperations, dryRun bool) *Exporter {
-	return &Exporter{
+// Additional runtime options can be specified via ExporterOption(s), such as WithDryRun.
+func NewExporterWithDependencies(session SessionInterface, downloadDir string, fs FileSystemOperations, opts ...ExporterOption) *Exporter {
+	e := &Exporter{
 		session:     session,
 		downloadDir: downloadDir,
 		fs:          fs,
-		dryRun:      dryRun,
+		dryRun:      false, // default
 	}
+	// Apply additional runtime options.
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
 }
 
 // ExportMyDrive exports convertible files from the user's Synology Drive, using download history to avoid duplicates.

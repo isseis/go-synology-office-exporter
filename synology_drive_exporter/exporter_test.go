@@ -447,7 +447,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			exporter := NewExporterWithDependencies(mockSession, dir, mockFS, false)
+			exporter := NewExporterWithDependencies(mockSession, dir, mockFS)
 			defer os.RemoveAll(dir)
 
 			// Run the test
@@ -850,7 +850,7 @@ func TestExporter_Counts(t *testing.T) {
 			DisplayPath: "/doc/test1.odoc",
 			Hash:        fileHash,
 		}
-		exporter := NewExporterWithDependencies(session, "", mockFS, false)
+		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processItem(item, history)
 		if got := history.DownloadCount.Get(); got != 1 {
 			t.Errorf("DownloadCount = %d, want 1", got)
@@ -874,7 +874,7 @@ func TestExporter_Counts(t *testing.T) {
 			DisplayPath: "/doc/test1.odoc",
 			Hash:        fileHash,
 		}
-		exporter := NewExporterWithDependencies(session, "", mockFS, false)
+		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processItem(item, history)
 		if got := history.SkippedCount.Get(); got != 1 {
 			t.Errorf("SkippedCount = %d, want 1", got)
@@ -892,7 +892,7 @@ func TestExporter_Counts(t *testing.T) {
 			DisplayPath: ignoredPath,
 			Hash:        fileHash,
 		}
-		exporter := NewExporterWithDependencies(session, "", mockFS, false)
+		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processItem(item, history)
 		if got := history.IgnoredCount.Get(); got != 1 {
 			t.Errorf("IgnoredCount = %d, want 1", got)
@@ -914,7 +914,7 @@ func TestExporter_Counts(t *testing.T) {
 			DisplayPath: "/doc/test2.odoc",
 			Hash:        fileHash2,
 		}
-		exporter := NewExporterWithDependencies(session, "", mockFS, false)
+		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processItem(item, history)
 		if got := history.ErrorCount.Get(); got != 1 {
 			t.Errorf("ErrorCount = %d, want 1", got)
@@ -939,7 +939,7 @@ func TestExporter_Counts(t *testing.T) {
 			DisplayPath: "/doc/test2.odoc",
 			Hash:        fileHash2,
 		}
-		exporter := NewExporterWithDependencies(session, "", mockFS, false)
+		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processItem(item, history)
 		if got := history.ErrorCount.Get(); got != 1 {
 			t.Errorf("ErrorCount = %d, want 1", got)
@@ -965,7 +965,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 			DisplayPath: "/doc/test1.odoc",
 			Hash:        "hash1",
 		}
-		exporter := NewExporterWithDependencies(session, "", mockFS, false)
+		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processFile(item, history)
 		// Retrieve the history item by display path.
 		dlItem, exists := history.GetItem(makeLocalFileName(item.DisplayPath))
@@ -994,7 +994,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 			},
 		}
 		mockFS := NewMockFileSystem()
-		exporter := NewExporterWithDependencies(session, "", mockFS, false)
+		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processFile(item, history)
 
 		// Inline getHistoryItemByDisplayPath logic (was: dlItem := getHistoryItemByDisplayPath(...))
@@ -1026,7 +1026,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 			},
 		}
 		mockFS := NewMockFileSystem()
-		exporter := NewExporterWithDependencies(session, "", mockFS, false)
+		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processFile(item1, history) // should become skipped
 		exporter.processFile(item2, history) // should become downloaded
 		// item3 not processed, remains loaded
@@ -1114,7 +1114,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 				DisplayPath: displayPath,
 				Hash:        tc.itemHash,
 			}
-			exporter := NewExporterWithDependencies(session, "", mockFS, false)
+			exporter := NewExporterWithDependencies(session, "", mockFS)
 			exporter.processItem(item, history)
 			if writeCalled != tc.expectWrite {
 				t.Errorf("expected write: %v, got: %v", tc.expectWrite, writeCalled)
