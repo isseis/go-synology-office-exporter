@@ -18,8 +18,9 @@ var mockServer *httptest.Server
 // For integration tests, see api_integration_test.go
 func TestMain(m *testing.M) {
 	mockServer = httptest.NewServer(http.HandlerFunc(mockSynologyHandler))
-	defer mockServer.Close()
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	mockServer.Close()
+	os.Exit(exitCode)
 }
 
 func getNasUrl() string {
