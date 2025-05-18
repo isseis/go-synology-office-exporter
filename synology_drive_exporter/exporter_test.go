@@ -517,7 +517,7 @@ func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFil
 }
 
 // makeTestKey is a test helper that generates a key for a given display path.
-func TestExporter_MakeHistoryKey(t *testing.T) {
+func TestExporter_MakeLocalFileName(t *testing.T) {
 
 	testCases := []struct {
 		displayPath string
@@ -531,7 +531,7 @@ func TestExporter_MakeHistoryKey(t *testing.T) {
 	for _, tc := range testCases {
 		actual := MakeLocalFileName(tc.displayPath)
 		if actual != tc.expected {
-			t.Errorf("MakeHistoryKey(%q) = %q; want %q", tc.displayPath, actual, tc.expected)
+			t.Errorf("MakeLocalFileName(%q) = %q; want %q", tc.displayPath, actual, tc.expected)
 		}
 	}
 }
