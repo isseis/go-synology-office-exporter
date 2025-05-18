@@ -3,9 +3,12 @@ package synology_drive_exporter
 import (
 	"errors"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/isseis/go-synology-office-exporter/download_history"
@@ -466,8 +469,8 @@ func TestExporterExportMyDrive(t *testing.T) {
 			if stats.Downloaded != tt.expectedFiles {
 				t.Errorf("Expected stats.Downloaded=%d, but got %d", tt.expectedFiles, stats.Downloaded)
 			}
-			if tt.expectedError && stats.Errors == 0 {
-				t.Errorf("Expected stats.Errors > 0, but got %d", stats.Errors)
+			if tt.expectedError && stats.DownloadErrs == 0 {
+				t.Errorf("Expected stats.DownloadErrs > 0, but got %d", stats.DownloadErrs)
 			}
 
 			// Check if all expected directories were traversed
@@ -516,7 +519,292 @@ func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFil
 	// Implementation omitted for this test; see above for details.
 }
 
-// makeTestKey is a test helper that generates a key for a given display path.
+func TestExportStats(t *testing.T) {
+	t.Run("No errors", func(t *testing.T) {
+		stats := &ExportStats{
+			Downloaded: 5,
+			Skipped:    3,
+			Ignored:    2,
+			Removed:    1,
+		}
+
+		assert.Equal(t, 0, stats.TotalErrs(), "TotalErrs() should return 0 when no errors")
+		expectedString := "downloaded=5, skipped=3, ignored=2, removed=1, download_errors=0, remove_errors=0"
+		assert.Equal(t, expectedString, stats.String(), "String() should return the expected format")
+	})
+
+	t.Run("With download errors", func(t *testing.T) {
+		stats := &ExportStats{
+			Downloaded:   2,
+			DownloadErrs: 1,
+		}
+
+		assert.Equal(t, 1, stats.TotalErrs(), "TotalErrs() should include download errors")
+		expectedString := "downloaded=2, skipped=0, ignored=0, removed=0, download_errors=1, remove_errors=0"
+		assert.Equal(t, expectedString, stats.String(), "String() should include download errors")
+	})
+
+	t.Run("With remove errors", func(t *testing.T) {
+		stats := &ExportStats{
+			Removed:    2,
+			RemoveErrs: 1,
+		}
+
+		assert.Equal(t, 1, stats.TotalErrs(), "TotalErrs() should include remove errors")
+		expectedString := "downloaded=0, skipped=0, ignored=0, removed=2, download_errors=0, remove_errors=1"
+		assert.Equal(t, expectedString, stats.String(), "String() should include remove errors")
+	})
+
+	t.Run("Increment methods", func(t *testing.T) {
+		t.Run("IncrementDownloadErrs", func(t *testing.T) {
+			stats := &ExportStats{}
+			initialErrs := stats.TotalErrs()
+			stats.IncrementDownloadErrs()
+			assert.Equal(t, initialErrs+1, stats.TotalErrs(), "Should increment total errors by 1")
+			assert.Equal(t, 1, stats.DownloadErrs, "Should increment DownloadErrs counter")
+		})
+
+		t.Run("IncrementRemoveErrs", func(t *testing.T) {
+			stats := &ExportStats{}
+			initialErrs := stats.TotalErrs()
+			stats.IncrementRemoveErrs()
+			assert.Equal(t, initialErrs+1, stats.TotalErrs(), "Should increment total errors by 1")
+			assert.Equal(t, 1, stats.RemoveErrs, "Should increment RemoveErrs counter")
+		})
+
+		t.Run("IncrementRemoved", func(t *testing.T) {
+			stats := &ExportStats{}
+			stats.IncrementRemoved()
+			assert.Equal(t, 1, stats.Removed, "Should increment Removed counter")
+		})
+	})
+}
+
+func TestExporter_removeFile(t *testing.T) {
+	tests := []struct {
+		name        string
+		dryRun      bool
+		createFile  bool // Whether to create the test file for this test case
+		shouldExist bool // Whether the file should exist after the operation
+		expectErr   bool
+	}{
+		{
+			name:        "Remove existing file",
+			dryRun:      false,
+			createFile:  true,
+			shouldExist: false,
+			expectErr:   false,
+		},
+		{
+			name:        "Dry run should not remove file",
+			dryRun:      true,
+			createFile:  true,
+			shouldExist: true, // In dry run, file should still exist
+			expectErr:   false,
+		},
+		{
+			name:        "Non-existent file should not error",
+			dryRun:      false,
+			createFile:  false,
+			shouldExist: false,
+			expectErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			testFile := filepath.Join(tempDir, "testfile.txt")
+
+			// Create a test file if needed for this test case
+			if tt.createFile {
+				err := os.WriteFile(testFile, []byte("test content"), 0644)
+				require.NoError(t, err, "Failed to create test file")
+			}
+
+			e := &Exporter{
+				DryRun: tt.dryRun,
+			}
+
+			err := e.removeFile(testFile)
+
+			if tt.expectErr {
+				assert.Error(t, err, "Expected error but got none")
+			} else {
+				assert.NoError(t, err, "Unexpected error")
+			}
+
+			_, err = os.Stat(testFile)
+			if tt.shouldExist {
+				assert.NoError(t, err, "File should still exist but doesn't")
+			} else if !os.IsNotExist(err) {
+				t.Errorf("File should not exist but does or other error: %v", err)
+			}
+		})
+	}
+}
+
+func TestExporter_cleanupObsoleteFiles(t *testing.T) {
+	t.Run("Normal cleanup", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Create some test files
+		files := []string{
+			filepath.Join(tempDir, "keep1.txt"),
+			filepath.Join(tempDir, "keep2.txt"),
+			filepath.Join(tempDir, "obsolete1.txt"),
+			filepath.Join(tempDir, "obsolete2.txt"),
+		}
+
+		for _, f := range files {
+			err := os.WriteFile(f, []byte("test"), 0644)
+			require.NoError(t, err, "Failed to create test file")
+		}
+
+		// Create a history with some files
+		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
+			filepath.Join(tempDir, "keep1.txt"): {
+				FileID:         "file1",
+				Hash:           "hash1",
+				DownloadTime:   time.Now(),
+				DownloadStatus: download_history.StatusDownloaded, // Mark as downloaded to keep
+			},
+			filepath.Join(tempDir, "keep2.txt"): {
+				FileID:         "file2",
+				Hash:           "hash2",
+				DownloadTime:   time.Now(),
+				DownloadStatus: download_history.StatusDownloaded, // Mark as downloaded to keep
+			},
+			filepath.Join(tempDir, "obsolete1.txt"): {
+				FileID:         "file3",
+				Hash:           "hash3",
+				DownloadTime:   time.Now(),
+				DownloadStatus: download_history.StatusLoaded, // Mark as loaded to be removed
+			},
+			filepath.Join(tempDir, "obsolete2.txt"): {
+				FileID:         "file4",
+				Hash:           "hash4",
+				DownloadTime:   time.Now(),
+				DownloadStatus: download_history.StatusLoaded, // Mark as loaded to be removed
+			},
+		})
+
+		e := &Exporter{
+			fs:     NewMockFileSystem(),
+			DryRun: false,
+		}
+
+		stats := &ExportStats{}
+		e.cleanupObsoleteFiles(history, stats)
+
+		// Verify the stats were updated correctly
+		assert.Equal(t, 2, stats.Removed, "Should have removed 2 files")
+		assert.Equal(t, 0, stats.RemoveErrs, "Should have no remove errors")
+
+		// Verify the files were actually removed
+		for _, f := range files {
+			_, err := os.Stat(f)
+			if strings.Contains(f, "obsolete") {
+				assert.True(t, os.IsNotExist(err), "Obsolete file should have been removed: %s", f)
+			} else {
+				assert.NoError(t, err, "Non-obsolete file should still exist: %s", f)
+			}
+		}
+	})
+
+	t.Run("Dry run should not remove files", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Create some test files
+		files := []string{
+			filepath.Join(tempDir, "obsolete1.txt"),
+			filepath.Join(tempDir, "obsolete2.txt"),
+		}
+
+		for _, f := range files {
+			err := os.WriteFile(f, []byte("test"), 0644)
+			require.NoError(t, err, "Failed to create test file")
+		}
+
+		// Create a history with some files
+		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
+			filepath.Join(tempDir, "obsolete1.txt"): {
+				FileID:         "file1",
+				Hash:           "hash1",
+				DownloadTime:   time.Now(),
+				DownloadStatus: download_history.StatusLoaded, // Mark as loaded to be removed
+			},
+			filepath.Join(tempDir, "obsolete2.txt"): {
+				FileID:         "file2",
+				Hash:           "hash2",
+				DownloadTime:   time.Now(),
+				DownloadStatus: download_history.StatusLoaded, // Mark as loaded to be removed
+			},
+		})
+
+		e := &Exporter{
+			fs:     NewMockFileSystem(),
+			DryRun: true, // Enable dry run
+		}
+
+		stats := &ExportStats{}
+		e.cleanupObsoleteFiles(history, stats)
+
+		// Verify no files were actually removed in dry run mode
+		assert.Equal(t, 0, stats.Removed, "Should not have removed any files in dry run")
+		assert.Equal(t, 0, stats.RemoveErrs, "Should have no remove errors")
+
+		// Verify the files still exist
+		for _, f := range files {
+			_, err := os.Stat(f)
+			assert.NoError(t, err, "File should still exist in dry run: %s", f)
+		}
+	})
+
+	t.Run("Skip cleanup on errors", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Create some test files
+		files := []string{
+			filepath.Join(tempDir, "obsolete1.txt"),
+		}
+
+		for _, f := range files {
+			err := os.WriteFile(f, []byte("test"), 0644)
+			require.NoError(t, err, "Failed to create test file")
+		}
+
+		// Create a history with some files
+		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
+			filepath.Join(tempDir, "obsolete1.txt"): {
+				FileID:         "file1",
+				Hash:           "hash1",
+				DownloadTime:   time.Now(),
+				DownloadStatus: download_history.StatusLoaded, // Mark as loaded to be removed
+			},
+		})
+
+		e := &Exporter{
+			fs:     NewMockFileSystem(),
+			DryRun: false,
+		}
+
+		stats := &ExportStats{
+			DownloadErrs: 1, // Simulate a previous error
+		}
+
+		e.cleanupObsoleteFiles(history, stats)
+
+		// Verify no files were removed due to previous errors
+		assert.Equal(t, 0, stats.Removed, "Should not have removed any files due to previous errors")
+		assert.Equal(t, 0, stats.RemoveErrs, "Should have no remove errors")
+
+		// Verify the file still exists
+		_, err := os.Stat(filepath.Join(tempDir, "obsolete1.txt"))
+		assert.NoError(t, err, "File should still exist when cleanup is skipped due to errors")
+	})
+}
+
 func TestExporter_MakeLocalFileName(t *testing.T) {
 
 	testCases := []struct {

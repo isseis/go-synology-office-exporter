@@ -2,6 +2,7 @@ package synology_drive_exporter
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,41 @@ import (
 	"github.com/isseis/go-synology-office-exporter/download_history"
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
+
+// ExportStats holds the statistics of the export operation
+type ExportStats struct {
+	Downloaded   int // Number of successfully downloaded files
+	Skipped      int // Number of skipped files (already up-to-date)
+	Ignored      int // Number of ignored files (not exportable)
+	Removed      int // Number of successfully removed files
+	DownloadErrs int // Number of errors occurred during download
+	RemoveErrs   int // Number of errors occurred during removal
+}
+
+// String returns a string representation of the export statistics
+func (s ExportStats) String() string {
+	return fmt.Sprintf("downloaded=%d, skipped=%d, ignored=%d, removed=%d, download_errors=%d, remove_errors=%d",
+		s.Downloaded, s.Skipped, s.Ignored, s.Removed, s.DownloadErrs, s.RemoveErrs)
+}
+
+func (s *ExportStats) IncrementRemoved() {
+	s.Removed++
+}
+
+// IncrementDownloadErrs increments the download error count
+func (s *ExportStats) IncrementDownloadErrs() {
+	s.DownloadErrs++
+}
+
+// IncrementRemoveErrs increments the removal error count
+func (s *ExportStats) IncrementRemoveErrs() {
+	s.RemoveErrs++
+}
+
+// TotalErrs returns the total number of errors
+func (s *ExportStats) TotalErrs() int {
+	return s.DownloadErrs + s.RemoveErrs
+}
 
 // FileSystemOperations abstracts file system operations for the Exporter, allowing for easy mocking in tests.
 type FileSystemOperations interface {
@@ -55,6 +91,10 @@ type Exporter struct {
 	session     SessionInterface
 	downloadDir string // Directory where downloaded files will be saved
 	fs          FileSystemOperations
+
+	// When DryRun is true, no actual file operations will be performed
+	// Only log messages and statistics will be updated
+	DryRun bool
 }
 
 // NewExporter constructs an Exporter with a real Synology session and the specified download directory. If downloadDir is empty, the current directory is used.
@@ -80,7 +120,7 @@ func NewExporterWithDependencies(session SessionInterface, downloadDir string, f
 }
 
 // ExportMyDrive exports convertible files from the user's Synology Drive, using download history to avoid duplicates.
-func (e *Exporter) ExportMyDrive() (download_history.ExportStats, error) {
+func (e *Exporter) ExportMyDrive() (ExportStats, error) {
 	return e.ExportRootsWithHistory(
 		[]synd.FileID{synd.MyDrive},
 		"mydrive_history.json",
@@ -88,10 +128,10 @@ func (e *Exporter) ExportMyDrive() (download_history.ExportStats, error) {
 }
 
 // ExportTeamFolder exports convertible files from all team folders, using download history to avoid duplicates.
-func (e *Exporter) ExportTeamFolder() (download_history.ExportStats, error) {
+func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
 	teamFolder, err := e.session.TeamFolder()
 	if err != nil {
-		return download_history.ExportStats{}, err
+		return ExportStats{}, err
 	}
 	var rootIDs []synd.FileID
 	for _, item := range teamFolder.Items {
@@ -104,10 +144,10 @@ func (e *Exporter) ExportTeamFolder() (download_history.ExportStats, error) {
 }
 
 // ExportSharedWithMe exports convertible files and directories shared with the user, using download history to avoid duplicates.
-func (e *Exporter) ExportSharedWithMe() (download_history.ExportStats, error) {
+func (e *Exporter) ExportSharedWithMe() (ExportStats, error) {
 	sharedWithMe, err := e.session.SharedWithMe()
 	if err != nil {
-		return download_history.ExportStats{}, err
+		return ExportStats{}, err
 	}
 	var exportItems []ExportItem
 	for _, item := range sharedWithMe.Items {
@@ -116,33 +156,47 @@ func (e *Exporter) ExportSharedWithMe() (download_history.ExportStats, error) {
 	return e.exportItemsWithHistory(exportItems, "shared_with_me_history.json")
 }
 
+func toExportStats(stats download_history.ExportStats) ExportStats {
+	return ExportStats{
+		Downloaded:   stats.Downloaded,
+		Skipped:      stats.Skipped,
+		Ignored:      stats.Ignored,
+		Removed:      0,
+		DownloadErrs: stats.Errors,
+		RemoveErrs:   0,
+	}
+}
+
 // exportItemsWithHistory is an internal helper for exporting a slice of ExportItem with download history management.
 func (e *Exporter) exportItemsWithHistory(
 	items []ExportItem,
 	historyFile string,
-) (download_history.ExportStats, error) {
+) (ExportStats, error) {
 	historyPath := filepath.Join(e.downloadDir, historyFile)
 	history, err := download_history.NewDownloadHistory(historyPath)
 	if err != nil {
-		return download_history.ExportStats{}, &DownloadHistoryOperationError{Op: "create", Err: err}
+		return ExportStats{}, &DownloadHistoryOperationError{Op: "create", Err: err}
 	}
 	if err := history.Load(); err != nil {
-		return history.GetStats(), &DownloadHistoryOperationError{Op: "load", Err: err}
+		return toExportStats(history.GetStats()), &DownloadHistoryOperationError{Op: "load", Err: err}
 	}
 	for _, item := range items {
 		e.processItem(item, history)
 	}
 	if err := history.Save(); err != nil {
-		return history.GetStats(), &DownloadHistoryOperationError{Op: "save", Err: err}
+		return toExportStats(history.GetStats()), &DownloadHistoryOperationError{Op: "save", Err: err}
 	}
-	return history.GetStats(), nil
+
+	stats := toExportStats(history.GetStats())
+	e.cleanupObsoleteFiles(history, &stats)
+	return stats, nil
 }
 
 // ExportRootsWithHistory exports multiple root directories with download history management.
 func (e *Exporter) ExportRootsWithHistory(
 	rootIDs []synd.FileID,
 	historyFile string,
-) (download_history.ExportStats, error) {
+) (ExportStats, error) {
 	var exportItems []ExportItem
 	for _, rootID := range rootIDs {
 		exportItems = append(exportItems, ExportItem{
@@ -183,7 +237,6 @@ func (e *Exporter) processFile(item ExportItem, history *download_history.Downlo
 
 		fmt.Printf("Skip (already exported and hash unchanged): %s\n", localPath)
 		history.SkippedCount.Increment()
-		// Mark as skipped only if current status is "loaded" (precondition checked in method)
 		err := history.MarkSkipped(localPath)
 		if err != nil {
 			fmt.Printf("Warning: could not mark as skipped: %v\n", err)
@@ -248,5 +301,46 @@ func (e *Exporter) processItem(item ExportItem, history *download_history.Downlo
 		e.processDirectory(item, history)
 	case synd.ObjectTypeFile:
 		e.processFile(item, history)
+	}
+}
+
+// removeFile removes the specified file from the filesystem
+// In DryRun mode, it only logs the operation without actually removing the file
+func (e *Exporter) removeFile(path string) error {
+	if e.DryRun {
+		log.Printf("[DRY RUN] Would remove file: %s", path)
+		return nil
+	}
+
+	err := os.Remove(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Printf("File already removed: %s", path)
+			return nil
+		}
+		return fmt.Errorf("failed to remove file %s: %w", path, err)
+	}
+	log.Printf("Removed file: %s", path)
+	return nil
+}
+
+// cleanupObsoleteFiles removes files that exist in history but not in the current export
+// It skips cleanup if there were any errors during the export process
+func (e *Exporter) cleanupObsoleteFiles(history *download_history.DownloadHistory, stats *ExportStats) {
+	if stats.TotalErrs() > 0 {
+		log.Println("Skipping cleanup due to previous errors")
+		return
+	}
+
+	obsoletePaths := history.GetObsoleteItems()
+	for _, path := range obsoletePaths {
+		if err := e.removeFile(path); err != nil {
+			if !e.DryRun { // Only count errors in non-dry run mode
+				stats.IncrementRemoveErrs()
+			}
+			log.Printf("Error removing file: %v", err)
+		} else if !e.DryRun { // Only count successful removals in non-dry run mode
+			stats.IncrementRemoved()
+		}
 	}
 }
