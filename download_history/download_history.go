@@ -36,7 +36,7 @@ type ExportStats struct {
 
 // DownloadHistory manages the download state and statistics.
 type DownloadHistory struct {
-	items map[string]DownloadItem // items holds the download history, private for encapsulation
+	items map[string]DownloadItem
 	path  string
 
 	DownloadCount counter
@@ -273,4 +273,16 @@ func (d *DownloadHistory) Save() error {
 	}
 	defer file.Close()
 	return d.saveToWriter(file)
+}
+
+// GetObsoleteItems returns a slice of file paths that are marked as "loaded" in the history.
+// These represent files that exist in history but were not found in the current export.
+func (d *DownloadHistory) GetObsoleteItems() []string {
+	var obsolete []string
+	for path, item := range d.items {
+		if item.DownloadStatus == StatusLoaded {
+			obsolete = append(obsolete, path)
+		}
+	}
+	return obsolete
 }

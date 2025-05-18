@@ -10,7 +10,6 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"github.com/isseis/go-synology-office-exporter/download_history"
 	syndexp "github.com/isseis/go-synology-office-exporter/synology_drive_exporter"
 )
 
@@ -149,7 +148,7 @@ func main() {
 
 	// Run the export for each specified source
 	for _, source := range sources {
-		var stats download_history.ExportStats
+		var stats syndexp.ExportStats
 		var err error
 
 		switch source {
@@ -169,10 +168,10 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("[%s] Downloaded: %d, Skipped: %d, Ignored: %d, Errors: %d\n",
-			source, stats.Downloaded, stats.Skipped, stats.Ignored, stats.Errors)
+		fmt.Printf("[%s] Downloaded: %d, Skipped: %d, Ignored: %d, Removed:	 %d, DownloadErrs: %d, RemoveErrs: %d\n",
+			source, stats.Downloaded, stats.Skipped, stats.Ignored, stats.Removed, stats.DownloadErrs, stats.RemoveErrs)
 
-		if stats.Errors > 0 {
+		if stats.TotalErrs() > 0 {
 			exitCode = 1
 		}
 	}
