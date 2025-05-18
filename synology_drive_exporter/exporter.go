@@ -87,7 +87,6 @@ type SessionInterface interface {
 }
 
 // Exporter handles exporting files from Synology Drive, maintaining download history and file system abstraction.
-// Exporter handles exporting files from Synology Drive, maintaining download history and file system abstraction.
 type Exporter struct {
 	session     SessionInterface
 	downloadDir string // Directory where downloaded files will be saved
@@ -349,7 +348,7 @@ func (e *Exporter) processItem(item ExportItem, history *download_history.Downlo
 // removeFile removes the specified file from the filesystem.
 // In DryRun mode, it only logs the operation without actually removing the file.
 func (e *Exporter) removeFile(path string) error {
-	if e.dryRun {
+	if e.IsDryRun() {
 		log.Printf("[DRY RUN] Would remove file: %s", path)
 		return nil
 	}
