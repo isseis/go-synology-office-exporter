@@ -623,7 +623,7 @@ func TestExporter_removeFile(t *testing.T) {
 			}
 
 			e := &Exporter{
-				DryRun: tt.dryRun,
+				dryRun: tt.dryRun,
 			}
 
 			err := e.removeFile(testFile)
@@ -691,7 +691,7 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 
 		e := &Exporter{
 			fs:     NewMockFileSystem(),
-			DryRun: false,
+			dryRun: false,
 		}
 
 		stats := &ExportStats{}
@@ -744,17 +744,17 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 
 		e := &Exporter{
 			fs:     NewMockFileSystem(),
-			DryRun: true, // Enable dry run
+			dryRun: true, // Enable dry run
 		}
 
 		stats := &ExportStats{}
 		e.cleanupObsoleteFiles(history, stats)
 
-		// Verify no files were actually removed in dry run mode
-		assert.Equal(t, 0, stats.Removed, "Should not have removed any files in dry run")
+		// Verify files are counted as removed in dry run mode
+		assert.Equal(t, 2, stats.Removed, "Should count files as removed in dry run")
 		assert.Equal(t, 0, stats.RemoveErrs, "Should have no remove errors")
 
-		// Verify the files still exist
+		// Verify the files were not actually removed in dry run mode
 		for _, f := range files {
 			_, err := os.Stat(f)
 			assert.NoError(t, err, "File should still exist in dry run: %s", f)
@@ -786,7 +786,7 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 
 		e := &Exporter{
 			fs:     NewMockFileSystem(),
-			DryRun: false,
+			dryRun: false,
 		}
 
 		stats := &ExportStats{

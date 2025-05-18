@@ -87,18 +87,36 @@ type SessionInterface interface {
 }
 
 // Exporter handles exporting files from Synology Drive, maintaining download history and file system abstraction.
+// Exporter handles exporting files from Synology Drive, maintaining download history and file system abstraction.
 type Exporter struct {
 	session     SessionInterface
 	downloadDir string // Directory where downloaded files will be saved
 	fs          FileSystemOperations
 
-	// When DryRun is true, no actual file operations will be performed
-	// Only log messages and statistics will be updated
-	DryRun bool
+	// dryRun controls whether file operations are performed. Immutable after construction.
+	// Default is false.
+	dryRun bool
+}
+
+// ExporterOption defines a function type to set options for Exporter.
+// Use WithDryRun and similar helpers to specify runtime options.
+type ExporterOption func(*Exporter)
+
+// WithDryRun sets the dryRun option for Exporter.
+func WithDryRun(dryRun bool) ExporterOption {
+	return func(e *Exporter) {
+		e.dryRun = dryRun
+	}
+}
+
+// IsDryRun returns true if the exporter is in dry-run mode.
+func (e *Exporter) IsDryRun() bool {
+	return e.dryRun
 }
 
 // NewExporter constructs an Exporter with a real Synology session and the specified download directory. If downloadDir is empty, the current directory is used.
-func NewExporter(username string, password string, base_url string, downloadDir string) (*Exporter, error) {
+// Additional runtime options can be specified via ExporterOption(s), such as WithDryRun.
+func NewExporter(username string, password string, base_url string, downloadDir string, opts ...ExporterOption) (*Exporter, error) {
 	session, err := synd.NewSynologySession(username, password, base_url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -106,17 +124,24 @@ func NewExporter(username string, password string, base_url string, downloadDir 
 	if err = session.Login(); err != nil {
 		return nil, fmt.Errorf("failed to login: %w", err)
 	}
-	exporter := NewExporterWithDependencies(session, downloadDir, &DefaultFileSystem{})
+	exporter := NewExporterWithDependencies(session, downloadDir, &DefaultFileSystem{}, opts...)
 	return exporter, nil
 }
 
 // NewExporterWithDependencies constructs an Exporter with injected dependencies for session, download directory, and file system. Intended for testing and advanced use.
-func NewExporterWithDependencies(session SessionInterface, downloadDir string, fs FileSystemOperations) *Exporter {
-	return &Exporter{
+// Additional runtime options can be specified via ExporterOption(s), such as WithDryRun.
+func NewExporterWithDependencies(session SessionInterface, downloadDir string, fs FileSystemOperations, opts ...ExporterOption) *Exporter {
+	e := &Exporter{
 		session:     session,
 		downloadDir: downloadDir,
 		fs:          fs,
+		dryRun:      false, // default
 	}
+	// Apply additional runtime options.
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
 }
 
 // ExportMyDrive exports convertible files from the user's Synology Drive, using download history to avoid duplicates.
@@ -223,6 +248,8 @@ func (e *Exporter) processDirectory(item ExportItem, history *download_history.D
 }
 
 // processFile exports a single convertible file and updates download history. Handles export, skip, and error logic.
+// processFile exports a single convertible file and updates download history. Handles export, skip, and error logic.
+// In dry-run mode, no file operations are performed; only statistics are updated.
 func (e *Exporter) processFile(item ExportItem, history *download_history.DownloadHistory) {
 	exportName := synd.GetExportFileName(item.DisplayPath)
 	if exportName == "" {
@@ -241,6 +268,21 @@ func (e *Exporter) processFile(item ExportItem, history *download_history.Downlo
 		if err != nil {
 			fmt.Printf("Warning: could not mark as skipped: %v\n", err)
 		}
+		return
+	}
+	if e.IsDryRun() {
+		fmt.Printf("[DRY RUN] Would export file: %s\n", exportName)
+		// Simulate successful export for statistics only
+		newItem := download_history.DownloadItem{
+			FileID:       item.FileID,
+			Hash:         item.Hash,
+			DownloadTime: time.Now(),
+		}
+		errHistory := history.SetDownloaded(localPath, newItem)
+		if errHistory != nil {
+			fmt.Printf("Warning: could not update download history: %v\n", errHistory)
+		}
+		history.DownloadCount.Increment()
 		return
 	}
 	fmt.Printf("Exporting file: %s\n", exportName)
@@ -304,10 +346,10 @@ func (e *Exporter) processItem(item ExportItem, history *download_history.Downlo
 	}
 }
 
-// removeFile removes the specified file from the filesystem
-// In DryRun mode, it only logs the operation without actually removing the file
+// removeFile removes the specified file from the filesystem.
+// In DryRun mode, it only logs the operation without actually removing the file.
 func (e *Exporter) removeFile(path string) error {
-	if e.DryRun {
+	if e.dryRun {
 		log.Printf("[DRY RUN] Would remove file: %s", path)
 		return nil
 	}
@@ -335,12 +377,10 @@ func (e *Exporter) cleanupObsoleteFiles(history *download_history.DownloadHistor
 	obsoletePaths := history.GetObsoleteItems()
 	for _, path := range obsoletePaths {
 		if err := e.removeFile(path); err != nil {
-			if !e.DryRun { // Only count errors in non-dry run mode
-				stats.IncrementRemoveErrs()
-			}
+			stats.IncrementRemoveErrs() // Always count errors
 			log.Printf("Error removing file: %v", err)
-		} else if !e.DryRun { // Only count successful removals in non-dry run mode
-			stats.IncrementRemoved()
+		} else {
+			stats.IncrementRemoved() // Always count successful removals
 		}
 	}
 }
