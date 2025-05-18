@@ -46,14 +46,20 @@ type DownloadHistory struct {
 	ErrorCount    counter
 }
 
+// MakeHistoryKey generates a key for download history from a display path.
+// This replicates the logic previously used in synology_drive_exporter.MakeHistoryKey.
+func MakeHistoryKey(displayPath string) string {
+	return strings.TrimPrefix(filepath.Clean(displayPath), "/")
+}
+
 // ErrHistoryItemNotFound is returned when the specified item does not exist in the history.
 var ErrHistoryItemNotFound = fmt.Errorf("download history item not found")
 
 // ErrHistoryInvalidStatus is returned when the item's status does not match the expected state.
 var ErrHistoryInvalidStatus = fmt.Errorf("download history item status is invalid")
 
-// MarkSkipped sets the status of an existing item to 'skipped' if its current status is 'loaded'.
-// Returns an error if the item does not exist or its status is not 'loaded'.
+// MarkSkipped sets the status of an existing item to 'skipped'.
+// Returns an error if the item does not exist or if the item's status is not 'loaded'.
 func (d *DownloadHistory) MarkSkipped(location string) error {
 	item, ok := d.Items[location]
 	if !ok {
@@ -94,10 +100,9 @@ func (d *DownloadHistory) GetStats() ExportStats {
 	}
 }
 
-// GetItemByDisplayPath looks up a DownloadItem by its display path.
+// GetItem looks up a DownloadItem by its key.
 // It returns the item and true if found, or false if not found.
-func (d *DownloadHistory) GetItemByDisplayPath(displayPath string) (DownloadItem, bool) {
-	key := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(displayPath)), "/")
+func (d *DownloadHistory) GetItem(key string) (DownloadItem, bool) {
 	item, exists := d.Items[key]
 	return item, exists
 }

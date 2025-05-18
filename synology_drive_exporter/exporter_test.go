@@ -3,8 +3,6 @@ package synology_drive_exporter
 import (
 	"errors"
 	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -519,8 +517,23 @@ func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFil
 }
 
 // makeTestKey is a test helper that generates a key for a given display path.
-func makeTestKey(displayPath string) string {
-	return strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(displayPath)), "/")
+func TestExporter_MakeHistoryKey(t *testing.T) {
+
+	testCases := []struct {
+		displayPath string
+		expected    string
+	}{
+		{"/mydrive/file.odoc", "mydrive/file.odoc"},
+		{"/mydrive/../mydrive/file.odoc", "mydrive/file.odoc"},
+		{"mydrive/file.odoc", "mydrive/file.odoc"},
+		{"/teamfolder/dir/../file.osheet", "teamfolder/file.osheet"},
+	}
+	for _, tc := range testCases {
+		actual := MakeHistoryKey(tc.displayPath)
+		if actual != tc.expected {
+			t.Errorf("MakeHistoryKey(%q) = %q; want %q", tc.displayPath, actual, tc.expected)
+		}
+	}
 }
 
 // TestExporter_Counts verifies that DownloadHistory counters are incremented correctly during export.
@@ -532,7 +545,7 @@ func TestExporter_Counts(t *testing.T) {
 	ignoredFileID := synd.FileID("file3")
 	ignoredPath := "/doc/ignored.txt" // not exportable
 	displayPath := "/doc/test1.odoc"
-	cleanPath := makeTestKey(displayPath)
+	cleanPath := MakeHistoryKey(displayPath)
 
 	t.Run("DownloadCount increments on successful export", func(t *testing.T) {
 		session := &MockSynologySession{
@@ -667,10 +680,9 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		}
 		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processFile(item, history)
-		dlItem, exists := history.GetItemByDisplayPath(item.DisplayPath)
-		if !exists {
-			t.Fatal("expected item to exist in history")
-		}
+		// Retrieve the history item by display path.
+		dlItem, exists := history.GetItem(download_history.MakeHistoryKey(item.DisplayPath))
+		require.True(t, exists, "expected item to exist in history for path: %s", item.DisplayPath)
 		if dlItem.DownloadStatus != download_history.StatusDownloaded {
 			t.Errorf("expected download_history.StatusDownloaded, got %v", dlItem.DownloadStatus)
 		}
@@ -684,7 +696,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 			Hash:        "hash1",
 		}
 		initialTime := time.Date(2024, 5, 18, 8, 0, 0, 0, time.UTC)
-		path := makeTestKey(item.DisplayPath)
+		path := MakeHistoryKey(item.DisplayPath)
 		history, err := download_history.NewDownloadHistory("test_history.json")
 		require.NoError(t, err)
 		history.Items = map[string]download_history.DownloadItem{
@@ -698,10 +710,11 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		mockFS := NewMockFileSystem()
 		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processFile(item, history)
-		dlItem, exists := history.GetItemByDisplayPath(item.DisplayPath)
-		if !exists {
-			t.Fatal("expected item to exist in history")
-		}
+		t.Logf("[DEBUG] after MarkSkipped: history.Items[%q].DownloadStatus = %v", path, history.Items[path].DownloadStatus)
+
+		// Inline getHistoryItemByDisplayPath logic (was: dlItem := getHistoryItemByDisplayPath(...))
+		dlItem, exists := history.GetItem(download_history.MakeHistoryKey(item.DisplayPath))
+		require.True(t, exists, "expected item to exist in history for path: %s", item.DisplayPath)
 		if dlItem.DownloadStatus != download_history.StatusSkipped {
 			t.Errorf("expected download_history.StatusSkipped, got %v", dlItem.DownloadStatus)
 		}
@@ -719,9 +732,9 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		history, err := download_history.NewDownloadHistory("test_history.json")
 		require.NoError(t, err)
 		history.Items = map[string]download_history.DownloadItem{
-			makeTestKey(item1.DisplayPath): {FileID: "file1", Hash: "hash1", DownloadStatus: download_history.StatusLoaded},
-			makeTestKey(item2.DisplayPath): {FileID: "file2", Hash: "hash2-old", DownloadStatus: download_history.StatusLoaded},
-			makeTestKey(item3.DisplayPath): {FileID: "file3", Hash: "hash3", DownloadStatus: download_history.StatusLoaded},
+			MakeHistoryKey(item1.DisplayPath): {FileID: "file1", Hash: "hash1", DownloadStatus: download_history.StatusLoaded},
+			MakeHistoryKey(item2.DisplayPath): {FileID: "file2", Hash: "hash2-old", DownloadStatus: download_history.StatusLoaded},
+			MakeHistoryKey(item3.DisplayPath): {FileID: "file3", Hash: "hash3", DownloadStatus: download_history.StatusLoaded},
 		}
 		session := &MockSynologySession{
 			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
@@ -735,7 +748,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		// item3 not processed, remains loaded
 
 		// Check item1 status (should be skipped)
-		item1Status, exists := history.GetItemByDisplayPath(item1.DisplayPath)
+		key1 := MakeHistoryKey(item1.DisplayPath)
+		item1Status, exists := history.GetItem(key1)
 		if !exists {
 			t.Fatal("expected item1 to exist in history")
 		}
@@ -744,7 +758,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		}
 
 		// Check item2 status (should be downloaded)
-		item2Status, exists := history.GetItemByDisplayPath(item2.DisplayPath)
+		key2 := MakeHistoryKey(item2.DisplayPath)
+		item2Status, exists := history.GetItem(key2)
 		if !exists {
 			t.Fatal("expected item2 to exist in history")
 		}
@@ -753,7 +768,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		}
 
 		// Check item3 status (should remain loaded)
-		item3Status, exists := history.GetItemByDisplayPath(item3.DisplayPath)
+		key3 := MakeHistoryKey(item3.DisplayPath)
+		item3Status, exists := history.GetItem(key3)
 		if !exists {
 			t.Fatal("expected item3 to exist in history")
 		}
@@ -766,7 +782,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 	fileHashOld := synd.FileHash("hash_old")
 	fileHashNew := synd.FileHash("hash_new")
 	displayPath := "/doc/test1.odoc"
-	cleanPath := makeTestKey(displayPath)
+	cleanPath := MakeHistoryKey(displayPath)
 	cases := []struct {
 		name        string
 		history     map[string]download_history.DownloadItem
@@ -824,7 +840,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 
 			// Verify the item exists in history if we expected a write
 			if tc.expectWrite {
-				_, exists := history.GetItemByDisplayPath(displayPath)
+				key := download_history.MakeHistoryKey(displayPath)
+				_, exists := history.GetItem(key)
 				if !exists {
 					t.Error("expected item to exist in history after processing")
 				}

@@ -69,6 +69,7 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 		h.Items["file1"] = itemOther
 		err := h.MarkSkipped("file1")
 		assert.ErrorIs(t, err, ErrHistoryInvalidStatus)
+		assert.Equal(t, StatusDownloaded, h.Items["file1"].DownloadStatus)
 	})
 
 	t.Run("SetDownloaded - update loaded", func(t *testing.T) {
