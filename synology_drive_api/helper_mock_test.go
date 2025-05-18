@@ -12,15 +12,26 @@ import (
 	"testing"
 )
 
+var mockServer *httptest.Server
+
 // TestMain sets up a mock Synology NAS server for unit tests.
 // For integration tests, see api_integration_test.go
 func TestMain(m *testing.M) {
-	mockServer := httptest.NewServer(http.HandlerFunc(mockSynologyHandler))
+	mockServer = httptest.NewServer(http.HandlerFunc(mockSynologyHandler))
 	defer mockServer.Close()
-	os.Setenv("SYNOLOGY_NAS_URL", mockServer.URL)
-	os.Setenv("SYNOLOGY_NAS_USER", "mock-user")
-	os.Setenv("SYNOLOGY_NAS_PASS", "mock-pass")
 	os.Exit(m.Run())
+}
+
+func getNasUrl() string {
+	return mockServer.URL
+}
+
+func getNasUser() string {
+	return "mock-user"
+}
+
+func getNasPass() string {
+	return "mock-pass"
 }
 
 // mockSynologyHandler handles requests to the mock Synology NAS API.
@@ -105,26 +116,4 @@ func handleMockEntry(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.Write([]byte(`{"success": true, "data": {}}`))
 	}
-}
-
-// getEnvOrPanic returns environment variables for test credentials and URL.
-// By default, returns mock values unless USE_REAL_SYNOLOGY is set.
-func getEnvOrPanic(key string) string {
-	if value, exists := os.LookupEnv(key); !exists {
-		panic(key + " is not set")
-	} else {
-		return value
-	}
-}
-
-func getNasUrl() string {
-	return getEnvOrPanic("SYNOLOGY_NAS_URL")
-}
-
-func getNasUser() string {
-	return getEnvOrPanic("SYNOLOGY_NAS_USER")
-}
-
-func getNasPass() string {
-	return getEnvOrPanic("SYNOLOGY_NAS_PASS")
 }
