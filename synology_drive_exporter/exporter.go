@@ -177,7 +177,7 @@ func (e *Exporter) processFile(item ExportItem, history *download_history.Downlo
 		return
 	}
 
-	localPath := MakeLocalFileName(item.DisplayPath)
+	localPath := makeLocalFileName(item.DisplayPath)
 	if prev, downloaded := history.GetItem(localPath); downloaded && prev.Hash == item.Hash {
 		fmt.Printf("[DEBUG] hash skip: localPath=%s, prev.Hash=%s, item.Hash=%s, prev.DownloadStatus=%s\n", localPath, prev.Hash, item.Hash, prev.DownloadStatus)
 
@@ -227,8 +227,8 @@ type ExportItem struct {
 	Hash        synd.FileHash
 }
 
-// MakeLocalFileName generates a local file name from a display path.
-func MakeLocalFileName(displayPath string) string {
+// makeLocalFileName generates a local file name from a display path.
+func makeLocalFileName(displayPath string) string {
 	return synd.GetExportFileName(strings.TrimPrefix(filepath.Clean(displayPath), "/"))
 }
 
