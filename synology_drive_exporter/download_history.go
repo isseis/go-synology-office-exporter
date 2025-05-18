@@ -224,7 +224,7 @@ func (d *DownloadHistory) Load() error {
 	return d.loadFromReader(file)
 }
 
-// saveToWriter writes DownloadItems to JSON, including their Status field.
+// saveToWriter writes DownloadItems to JSON.
 func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 	header := jsonHeader{
 		Version: HISTORY_VERSION,
@@ -258,8 +258,6 @@ func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 	return nil
 }
 
-// Save writes the download history to the JSON file specified during initialization.
-// It returns a DownloadHistoryFileError if the file cannot be created or written to.
 // Save writes the download history to the JSON file specified during initialization.
 // It returns a DownloadHistoryFileError if the file cannot be created or written to.
 func (d *DownloadHistory) Save() error {
