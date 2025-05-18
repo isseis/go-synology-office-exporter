@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	download_history "github.com/isseis/go-synology-office-exporter/download_history"
-	syndexp "github.com/isseis/go-synology-office-exporter/synology_drive_exporter"
 	"github.com/joho/godotenv"
+
+	"github.com/isseis/go-synology-office-exporter/download_history"
+	syndexp "github.com/isseis/go-synology-office-exporter/synology_drive_exporter"
 )
 
 // sourceType represents the type of export source.

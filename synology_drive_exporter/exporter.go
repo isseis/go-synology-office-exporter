@@ -124,19 +124,16 @@ func (e *Exporter) exportItemsWithHistory(
 	historyPath := filepath.Join(e.downloadDir, historyFile)
 	history, err := download_history.NewDownloadHistory(historyPath)
 	if err != nil {
-		// TODO: Replace with correct error type if DownloadHistoryOperationError is not available
-		return download_history.ExportStats{}, fmt.Errorf("download history operation (create) failed: %w", err)
+		return download_history.ExportStats{}, &DownloadHistoryOperationError{Op: "create", Err: err}
 	}
 	if err := history.Load(); err != nil {
-		// TODO: Replace with correct error type if DownloadHistoryOperationError is not available
-		return history.GetStats(), fmt.Errorf("download history operation (load) failed: %w", err)
+		return history.GetStats(), &DownloadHistoryOperationError{Op: "load", Err: err}
 	}
 	for _, item := range items {
 		e.processItem(item, history)
 	}
 	if err := history.Save(); err != nil {
-		// TODO: Replace with correct error type if DownloadHistoryOperationError is not available
-		return history.GetStats(), fmt.Errorf("download history operation (save) failed: %w", err)
+		return history.GetStats(), &DownloadHistoryOperationError{Op: "save", Err: err}
 	}
 	return history.GetStats(), nil
 }
