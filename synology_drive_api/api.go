@@ -1,4 +1,4 @@
-// package synology_drive_api provides functionality to interact with the Synology Drive API
+// Package synology_drive_api provides types and functions to interact with the Synology Drive API.
 package synology_drive_api
 
 import (
@@ -6,29 +6,29 @@ import (
 	"time"
 )
 
-// SynologyResponse is an interface that provides common response functionality from the Synology API
+// SynologyResponse is an interface for common Synology API response functionality.
 type SynologyResponse interface {
 	GetSuccess() bool
 	GetError() synologyError
 }
 
-// synologyAPIResponse represents the common structure of all Synology API responses
+// synologyAPIResponse is the base struct for all Synology API responses, containing success and error fields.
 type synologyAPIResponse struct {
 	Success bool          `json:"success"`
 	Err     synologyError `json:"error"`
 }
 
-// GetSuccess returns the success status of the response
+// GetSuccess returns true if the API response indicates success.
 func (r synologyAPIResponse) GetSuccess() bool {
 	return r.Success
 }
 
-// GetError returns the error information from the response
+// GetError returns error information from the API response.
 func (r synologyAPIResponse) GetError() synologyError {
 	return r.Err
 }
 
-// synologyError represents the error structure in Synology API responses
+// synologyError describes the error structure in Synology API responses.
 type synologyError struct {
 	Code   int `json:"code"`
 	Errors struct {
@@ -37,22 +37,19 @@ type synologyError struct {
 	}
 }
 
-// SessionID represents the session identifier for a Synology session,
-// which is issued by the Synology API upon successful login
-// and is used for subsequent API calls.
+// SessionID is issued by the Synology API upon successful login and is used for subsequent API calls.
 type SessionID string
 
-// DeviceID represents a unique identifier for a Synology devices
+// DeviceID is a unique identifier for a Synology device.
 type DeviceID string
 
-// UserID represents an identifier of a user on SynologyDrive
+// UserID is an identifier for a user on Synology Drive.
 type UserID int
 
-// FileID represents an identifier of a file on SynologyDrive
-// This can be a path (e.g. "/mydrive/somefile.odoc") or an ID (e.g. "123456789")
+// FileID identifies a file on Synology Drive. It can be a path (e.g. "/mydrive/somefile.odoc") or an ID (e.g. "123456789").
 type FileID string
 
-// isdigits checks if a string contains only digits
+// isdigits returns true if the input string contains only digits.
 func isdigits(s string) bool {
 	if len(s) == 0 {
 		return false
@@ -65,7 +62,7 @@ func isdigits(s string) bool {
 	return true
 }
 
-// toAPIParam converts a FileID to a string that can be used as a parameter in an API request
+// toAPIParam returns a string representation of FileID suitable for API requests.
 func (fileID FileID) toAPIParam() string {
 	if isdigits(string(fileID)) {
 		return "id:" + string(fileID)
@@ -73,15 +70,13 @@ func (fileID FileID) toAPIParam() string {
 	return string(fileID)
 }
 
-// FileHash represents the hash of a file on SynologyDrive
+// FileHash is the hash value of a file on Synology Drive.
 type FileHash string
 
-// APIName represents the name of a Synology API
-// Used for type safety when specifying the api field in apiRequest
-// Example: APINameSynologyDriveFiles, APINameSynologyAPIAuth, etc.
+// APIName is a type-safe string for Synology API names (e.g., APINameSynologyDriveFiles, APINameSynologyAPIAuth).
 type APIName string
 
-// API names for Synology API requests
+// Supported API names for Synology API requests.
 const (
 	APINameSynologyDriveFiles       APIName = "SYNO.SynologyDrive.Files"
 	APINameSynologyDriveTeamFolders APIName = "SYNO.SynologyDrive.TeamFolders"
@@ -105,37 +100,39 @@ func StringToAPIName(s string) APIName {
 	return APIName(s)
 }
 
-// MyDrive represents the root folder identifier in Synology Drive
+// MyDrive is the root folder identifier in Synology Drive.
 const MyDrive = FileID("/mydrive/")
 
-// ObjectType represents the type of file or directory in Synology Drive
+// ObjectType distinguishes between file and directory types in Synology Drive.
 type ObjectType string
 
-// ObjectTypeFile represents a file object in Synology Drive
+// ObjectTypeFile is the constant for file objects in Synology Drive.
 const ObjectTypeFile = ObjectType("file")
 
-// ObjectTypeDirectory represents a directory object in Synology Drive
-const ObjectTypeDirectory = ObjectType("dir")
+// ObjectTypeDirectory is the constant for directory objects in Synology Drive.
+const ObjectTypeDirectory = ObjectType("dir") // Directory type in Synology Drive.
 
-// contentType represents the type of content in a Synology Drive file
+// contentType describes the type of content in a Synology Drive file.
+// It can be one of the following types: audio, document, directory, file, image, or video.
 type contentType string
 
-// ContentTypeDocument represents a audio type in Synology Drive
+// ContentTypeAudio represents an audio file in Synology Drive.
 const ContentTypeAudio = contentType("audio")
 
-// ContentTypeDocument represents a document type in Synology Drive
+// ContentTypeDocument represents a document file in Synology Drive.
 const ContentTypeDocument = contentType("document")
 
-// ContentTypeDirectory represents a directory type in Synology Drive
+// ContentTypeDirectory represents a directory in Synology Drive.
+// ContentTypeDirectory is the constant for directory type content in Synology Drive.
 const ContentTypeDirectory = contentType("dir")
 
-// ContentTypeFile represents a regular file type in Synology Drive
+// ContentTypeFile is the constant for regular file type content in Synology Drive.
 const ContentTypeFile = contentType("file")
 
-// ContentTypeImage represents an image type in Synology Drive
+// ContentTypeImage is the constant for image files in Synology Drive.
 const ContentTypeImage = contentType("image")
 
-// ContentTypeVideo represents a video type in Synology Drive
+// ContentTypeVideo is the constant for video files in Synology Drive.
 const ContentTypeVideo = contentType("video")
 
 // isValid checks if the contentType is a valid supported type
@@ -384,9 +381,8 @@ type jsonResponseItem struct {
 
 // ResponseItem represents a file or folder item in a Synology Drive listing or shared-with-me API response
 // with proper Go types for improved usability. This type unifies ListResponseItem and SharedWithMeResponseItem.
-// ResponseItem represents a file or folder item in a Synology Drive listing or shared-with-me API response
-// with proper Go types for improved usability.
-// This type unifies ListResponseItem and SharedWithMeResponseItem
+// ResponseItem represents a file or folder in a Synology Drive listing or shared-with-me API response.
+// This type unifies ListResponseItem and SharedWithMeResponseItem for improved usability.
 type ResponseItem struct {
 	Type        ObjectType
 	FileID      FileID
@@ -432,8 +428,7 @@ type ResponseItem struct {
 	WatermarkVersion       int64
 }
 
-// toResponseItem converts the JSON representation to the Go friendly representation
-// with proper types such as time.Time instead of Unix timestamps
+// toResponseItem converts a JSON response item to a Go ResponseItem with proper types (e.g., time.Time).
 func (j *jsonResponseItem) toResponseItem() *ResponseItem {
 	return &ResponseItem{
 		Type:        j.Type,
@@ -481,17 +476,15 @@ func (j *jsonResponseItem) toResponseItem() *ResponseItem {
 	}
 }
 
-// officeExtensionMap defines the mapping between Synology Office file extensions
-// and their Microsoft Office equivalents
+// officeExtensionMap maps Synology Office file extensions to their Microsoft Office equivalents.
 var officeExtensionMap = map[string]string{
 	".odoc":    ".docx", // Synology Document to Word
 	".osheet":  ".xlsx", // Synology Spreadsheet to Excel
 	".oslides": ".pptx", // Synology Presentation to PowerPoint
 }
 
-// GetExportFileName converts a Synology Office file name to the equivalent
-// Microsoft Office file name based on its extension.
-// Returns an empty string if the file format is not a supported Synology Office format.
+// GetExportFileName returns the Microsoft Office file name for a Synology Office file name based on its extension.
+// Returns an empty string if the format is unsupported.
 func GetExportFileName(fileName string) string {
 	for synoExt, msExt := range officeExtensionMap {
 		if strings.HasSuffix(fileName, synoExt) {

@@ -1,4 +1,4 @@
-package synology_drive_exporter
+package download_history
 
 import (
 	"encoding/json"
@@ -52,12 +52,6 @@ var ErrHistoryItemNotFound = fmt.Errorf("download history item not found")
 // ErrHistoryInvalidStatus is returned when the item's status does not match the expected state.
 var ErrHistoryInvalidStatus = fmt.Errorf("download history item status is invalid")
 
-// SetItem sets or updates a DownloadItem for the given location in the download history.
-// This method should be used instead of direct access to the Items field from outside this struct.
-func (d *DownloadHistory) SetItem(location string, item DownloadItem) {
-	d.Items[location] = item
-}
-
 // MarkSkipped sets the status of an existing item to 'skipped' if its current status is 'loaded'.
 // Returns an error if the item does not exist or its status is not 'loaded'.
 func (d *DownloadHistory) MarkSkipped(location string) error {
@@ -108,6 +102,7 @@ func (d *DownloadHistory) GetItemByDisplayPath(displayPath string) (DownloadItem
 	return item, exists
 }
 
+// jsonHeader is used for marshaling/unmarshaling metadata for download history JSON files.
 type jsonHeader struct {
 	Version int    `json:"version"`
 	Magic   string `json:"magic"`
@@ -144,22 +139,20 @@ type DownloadItem struct {
 	DownloadStatus DownloadStatus
 }
 
-/**
- * NewDownloadHistory creates a new DownloadHistory instance with the specified path
- * for later use with Save and Load methods.
- *
- * It validates that the path is not empty and could potentially be a valid file path.
- * Returns an error if the filename is invalid.
- */
+// NewDownloadHistory creates a new DownloadHistory instance with the specified path
+// for later use with Save and Load methods.
+//
+// It validates that the path is not empty and could potentially be a valid file path.
+// Returns an error if the filename is invalid.
 func NewDownloadHistory(path string) (*DownloadHistory, error) {
 	// Basic validity check
 	if path == "" {
-		return nil, DownloadHistoryFileError("filename cannot be empty")
+		return nil, fmt.Errorf("filename cannot be empty")
 	}
 
 	// Check for obviously invalid filenames
 	if path == "." || path == ".." || path[len(path)-1] == '/' {
-		return nil, DownloadHistoryFileError(fmt.Sprintf("invalid filename: %s", path))
+		return nil, fmt.Errorf("invalid filename: %s", path)
 	}
 
 	history := &DownloadHistory{
@@ -169,26 +162,28 @@ func NewDownloadHistory(path string) (*DownloadHistory, error) {
 	return history, nil
 }
 
+// validate checks that the JSON header matches the expected version and magic string.
 func (hdr *jsonHeader) validate() error {
 	if hdr.Version != HISTORY_VERSION {
-		return DownloadHistoryParseError(fmt.Sprintf("unsupported version: %d", hdr.Version))
+		return fmt.Errorf("unsupported version: %d", hdr.Version)
 	}
 	if hdr.Magic != HISTORY_MAGIC {
-		return DownloadHistoryParseError(fmt.Sprintf("invalid magic: %s", hdr.Magic))
+		return fmt.Errorf("invalid magic: %s", hdr.Magic)
 	}
 	return nil
 }
 
 // loadFromReader loads DownloadItems from JSON and sets Status to "loaded" if not present.
+// loadFromReader is a private helper that loads DownloadItems from JSON and sets Status to "loaded" if not present.
 func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 	content, err := io.ReadAll(r)
 	if err != nil {
-		return DownloadHistoryFileReadError(err.Error())
+		return fmt.Errorf("file read error: %s", err.Error())
 	}
 
 	var history jsonDownloadHistory
 	if err := json.Unmarshal(content, &history); err != nil {
-		return DownloadHistoryParseError(err.Error())
+		return fmt.Errorf("parse error: %s", err.Error())
 	}
 
 	if err := history.Header.validate(); err != nil {
@@ -198,13 +193,13 @@ func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 	for _, item := range history.Items {
 		downloadTime, err := time.Parse(time.RFC3339, item.DownloadTime)
 		if err != nil {
-			return DownloadHistoryParseError(fmt.Sprintf("failed to parse download time: %s", err.Error()))
+			return fmt.Errorf("failed to parse download time: %s", err.Error())
 		}
-		// Check if the location is already in the map
+		// Prevent duplicate locations in the history map.
 		if _, exists := d.Items[item.Location]; exists {
-			return DownloadHistoryParseError(fmt.Sprintf("duplicate location: %s", item.Location))
+			return fmt.Errorf("duplicate location: %s", item.Location)
 		}
-		// Always initialize Status as StatusLoaded on load
+		// Set DownloadStatus to StatusLoaded on load to reflect state from file.
 		d.Items[item.Location] = DownloadItem{
 			FileID:         item.FileID,
 			Hash:           item.Hash,
@@ -217,23 +212,23 @@ func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 }
 
 // Load reads download history from the JSON file specified.
-// It returns a DownloadHistoryFileError if the file cannot be opened
-// or a DownloadHistoryParseError if the file contains invalid data.
+// It returns an error if the file cannot be opened or contains invalid data.
 func (d *DownloadHistory) Load() error {
-	// If the file does not exist, we can just behave as if there is no history
+	// If the file does not exist, treat as no history (not an error).
 	if _, err := os.Stat(d.path); os.IsNotExist(err) {
 		return nil
 	}
 
 	file, err := os.Open(d.path)
 	if err != nil {
-		return DownloadHistoryFileReadError(err.Error())
+		return fmt.Errorf("file read error: %s", err.Error())
 	}
 	defer file.Close()
 	return d.loadFromReader(file)
 }
 
 // saveToWriter writes DownloadItems to JSON.
+// saveToWriter is a private helper that writes DownloadItems to JSON.
 func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 	header := jsonHeader{
 		Version: HISTORY_VERSION,
@@ -258,25 +253,25 @@ func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 
 	data, err := json.MarshalIndent(history, "", "  ")
 	if err != nil {
-		return DownloadHistoryFileWriteError(err.Error())
+		return fmt.Errorf("file write error: %s", err.Error())
 	}
 
 	if _, err := w.Write(data); err != nil {
-		return DownloadHistoryFileWriteError(err.Error())
+		return fmt.Errorf("file write error: %s", err.Error())
 	}
 	return nil
 }
 
 // Save writes the download history to the JSON file specified during initialization.
-// It returns a DownloadHistoryFileError if the file cannot be created or written to.
+// It returns an error if the file cannot be created or written to.
 func (d *DownloadHistory) Save() error {
 	dir := filepath.Dir(d.path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return DownloadHistoryFileWriteError(err.Error())
+		return fmt.Errorf("file write error: %s", err.Error())
 	}
 	file, err := os.Create(d.path)
 	if err != nil {
-		return DownloadHistoryFileWriteError(err.Error())
+		return fmt.Errorf("file write error: %s", err.Error())
 	}
 	defer file.Close()
 	return d.saveToWriter(file)

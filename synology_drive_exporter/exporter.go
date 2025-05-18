@@ -7,21 +7,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/isseis/go-synology-office-exporter/download_history"
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
-// FileSystemOperations defines an interface for file system operations used by the Exporter.
-// This interface simplifies testing by allowing file system operations to be mocked.
+// FileSystemOperations abstracts file system operations for the Exporter, allowing for easy mocking in tests.
 type FileSystemOperations interface {
-	// CreateFile writes data to a file, creating parent directories if they don't exist.
-	// The `dirPerm` argument specifies the permissions for directories (e.g., 0755 allows
-	// the owner to read, write, and execute, while others can only read and execute).
-	// The `filePerm` argument specifies the permissions for files (e.g., 0644 allows
-	// the owner to read and write, while others can only read).
+	// CreateFile writes data to a file, creating parent directories if needed. Directory and file permissions are set by dirPerm and filePerm.
 	CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error
 }
 
-// DefaultFileSystem implements the FileSystemOperations interface using the os package.
+// DefaultFileSystem provides a production implementation of FileSystemOperations using the os package.
 type DefaultFileSystem struct{}
 
 func (fs *DefaultFileSystem) CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
@@ -39,31 +35,29 @@ func (fs *DefaultFileSystem) CreateFile(filename string, data []byte, dirPerm os
 	return nil
 }
 
-// SessionInterface defines an interface for the Synology session operations.
-// This interface allows the session to be mocked for testing.
+// SessionInterface abstracts Synology session operations for export and testability.
 type SessionInterface interface {
-	// List retrieves a list of items from the specified root directory.
+	// List retrieves items from the specified root directory.
 	List(rootDirID synd.FileID) (*synd.ListResponse, error)
 
-	// Export exports the specified file with conversion.
+	// Export exports the specified file, performing format conversion if needed.
 	Export(fileID synd.FileID) (*synd.ExportResponse, error)
 
-	// TeamFolder retrieves a list of team folders from the Synology Drive API.
+	// TeamFolder retrieves team folders from the Synology Drive API.
 	TeamFolder() (*synd.TeamFolderResponse, error)
 
-	// SharedWithMe retrieves a list of files shared with the user.
+	// SharedWithMe retrieves files shared with the user.
 	SharedWithMe() (*synd.SharedWithMeResponse, error)
 }
 
-// Exporter provides functionality to export files from Synology Drive.
+// Exporter handles exporting files from Synology Drive, maintaining download history and file system abstraction.
 type Exporter struct {
 	session     SessionInterface
 	downloadDir string // Directory where downloaded files will be saved
 	fs          FileSystemOperations
 }
 
-// NewExporter creates a new Exporter with the specified download directory.
-// If downloadDir is not provided, current directory will be used as default.
+// NewExporter constructs an Exporter with a real Synology session and the specified download directory. If downloadDir is empty, the current directory is used.
 func NewExporter(username string, password string, base_url string, downloadDir string) (*Exporter, error) {
 	session, err := synd.NewSynologySession(username, password, base_url)
 	if err != nil {
@@ -76,8 +70,7 @@ func NewExporter(username string, password string, base_url string, downloadDir 
 	return exporter, nil
 }
 
-// NewExporterWithDependencies creates a new Exporter with injected dependencies (session, downloadDir, and file system).
-// This constructor allows for dependency injection, making it suitable for both production and testing.
+// NewExporterWithDependencies constructs an Exporter with injected dependencies for session, download directory, and file system. Intended for testing and advanced use.
 func NewExporterWithDependencies(session SessionInterface, downloadDir string, fs FileSystemOperations) *Exporter {
 	return &Exporter{
 		session:     session,
@@ -86,21 +79,19 @@ func NewExporterWithDependencies(session SessionInterface, downloadDir string, f
 	}
 }
 
-// ExportMyDrive exports all convertible files from the user's Synology Drive and saves them to the download directory.
-// Download history is used to avoid duplicate downloads.
-func (e *Exporter) ExportMyDrive() (ExportStats, error) {
+// ExportMyDrive exports convertible files from the user's Synology Drive, using download history to avoid duplicates.
+func (e *Exporter) ExportMyDrive() (download_history.ExportStats, error) {
 	return e.ExportRootsWithHistory(
 		[]synd.FileID{synd.MyDrive},
 		"mydrive_history.json",
 	)
 }
 
-// ExportTeamFolder exports all convertible files from all team folders.
-// Download history is used to avoid duplicate downloads.
-func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
+// ExportTeamFolder exports convertible files from all team folders, using download history to avoid duplicates.
+func (e *Exporter) ExportTeamFolder() (download_history.ExportStats, error) {
 	teamFolder, err := e.session.TeamFolder()
 	if err != nil {
-		return ExportStats{}, err
+		return download_history.ExportStats{}, err
 	}
 	var rootIDs []synd.FileID
 	for _, item := range teamFolder.Items {
@@ -112,12 +103,11 @@ func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
 	)
 }
 
-// ExportSharedWithMe exports all convertible files and directories shared with the user.
-// Download history is used to avoid duplicate downloads.
-func (e *Exporter) ExportSharedWithMe() (ExportStats, error) {
+// ExportSharedWithMe exports convertible files and directories shared with the user, using download history to avoid duplicates.
+func (e *Exporter) ExportSharedWithMe() (download_history.ExportStats, error) {
 	sharedWithMe, err := e.session.SharedWithMe()
 	if err != nil {
-		return ExportStats{}, err
+		return download_history.ExportStats{}, err
 	}
 	var exportItems []ExportItem
 	for _, item := range sharedWithMe.Items {
@@ -126,18 +116,15 @@ func (e *Exporter) ExportSharedWithMe() (ExportStats, error) {
 	return e.exportItemsWithHistory(exportItems, "shared_with_me_history.json")
 }
 
-// exportItemsWithHistory is a common internal helper for exporting a slice of ExportItem with download history management.
-// It handles DownloadHistory creation, loading, saving, and calls processItem for each item.
-// This function is used by both ExportRootsWithHistory and ExportSharedWithMe to avoid code duplication.
-// Returns ExportStats and error (wrapped in DownloadHistoryOperationError if relevant).
+// exportItemsWithHistory is an internal helper for exporting a slice of ExportItem with download history management.
 func (e *Exporter) exportItemsWithHistory(
 	items []ExportItem,
 	historyFile string,
-) (ExportStats, error) {
+) (download_history.ExportStats, error) {
 	historyPath := filepath.Join(e.downloadDir, historyFile)
-	history, err := NewDownloadHistory(historyPath)
+	history, err := download_history.NewDownloadHistory(historyPath)
 	if err != nil {
-		return ExportStats{}, &DownloadHistoryOperationError{Op: "create", Err: err}
+		return download_history.ExportStats{}, &DownloadHistoryOperationError{Op: "create", Err: err}
 	}
 	if err := history.Load(); err != nil {
 		return history.GetStats(), &DownloadHistoryOperationError{Op: "load", Err: err}
@@ -151,12 +138,11 @@ func (e *Exporter) exportItemsWithHistory(
 	return history.GetStats(), nil
 }
 
-// ExportRootsWithHistory is a wrapper for exporting multiple root directories with download history management.
-// It converts rootIDs to ExportItem and delegates to exportItemsWithHistory.
+// ExportRootsWithHistory exports multiple root directories with download history management.
 func (e *Exporter) ExportRootsWithHistory(
 	rootIDs []synd.FileID,
 	historyFile string,
-) (ExportStats, error) {
+) (download_history.ExportStats, error) {
 	var exportItems []ExportItem
 	for _, rootID := range rootIDs {
 		exportItems = append(exportItems, ExportItem{
@@ -169,14 +155,8 @@ func (e *Exporter) ExportRootsWithHistory(
 	return e.exportItemsWithHistory(exportItems, historyFile)
 }
 
-// processDirectory recursively processes a directory and its subdirectories,
-// exporting all convertible Synology Office files.
-// Parameters:
-//   - item: The ExportItem representing the directory to process
-//   - history: DownloadHistory instance to record downloaded files
-//
-// Directory errors are logged and counted in history. Processing continues even if errors occur.
-func (e *Exporter) processDirectory(item ExportItem, history *DownloadHistory) {
+// processDirectory recursively processes a directory and its subdirectories, exporting convertible files and recording errors in history.
+func (e *Exporter) processDirectory(item ExportItem, history *download_history.DownloadHistory) {
 	list, err := e.session.List(item.FileID)
 	if err != nil {
 		fmt.Printf("Failed to list directory %s: %v\n", item.DisplayPath, err)
@@ -188,17 +168,8 @@ func (e *Exporter) processDirectory(item ExportItem, history *DownloadHistory) {
 	}
 }
 
-// processFile exports a single convertible Synology Office file and updates the download history accordingly.
-//
-// Parameters:
-//   - item: ExportItem representing the Synology Office file to export
-//   - history: DownloadHistory instance to record and update download status
-//
-// If the file is not exportable, increments the ignored counter.
-// If the file was already exported and hash is unchanged, increments the skipped counter and marks status as "skipped".
-// Otherwise, exports and saves the file, then records or updates its status as "downloaded".
-// All status transitions are performed via DownloadHistory methods with precondition checks.
-func (e *Exporter) processFile(item ExportItem, history *DownloadHistory) {
+// processFile exports a single convertible file and updates download history. Handles export, skip, and error logic.
+func (e *Exporter) processFile(item ExportItem, history *download_history.DownloadHistory) {
 	exportName := synd.GetExportFileName(item.DisplayPath)
 	if exportName == "" {
 		fmt.Printf("Skip (not exportable): %s\n", item.DisplayPath)
@@ -233,7 +204,7 @@ func (e *Exporter) processFile(item ExportItem, history *DownloadHistory) {
 
 	fmt.Printf("Saved to: %s\n", downloadPath)
 	// Update download history: if entry exists, mark as downloaded (only if loaded); otherwise add as new downloaded entry.
-	newItem := DownloadItem{
+	newItem := download_history.DownloadItem{
 		FileID:       item.FileID,
 		Hash:         item.Hash,
 		DownloadTime: time.Now(),
@@ -246,8 +217,7 @@ func (e *Exporter) processFile(item ExportItem, history *DownloadHistory) {
 	history.DownloadCount.Increment()
 }
 
-// ExportItem contains only the fields needed for export processing.
-// This reduces dependency on the full ResponseItem struct and improves maintainability.
+// ExportItem contains only the fields needed for export processing, reducing dependency on the full ResponseItem struct.
 type ExportItem struct {
 	Type        synd.ObjectType
 	FileID      synd.FileID
@@ -255,8 +225,6 @@ type ExportItem struct {
 	Hash        synd.FileHash
 }
 
-// toExportItem converts a *synd.ResponseItem to an ExportItem for export processing.
-// Only the necessary fields are copied. This is a standalone function because Go does not allow methods on non-local types.
 func toExportItem(item *synd.ResponseItem) ExportItem {
 	return ExportItem{
 		Type:        item.Type,
@@ -266,16 +234,8 @@ func toExportItem(item *synd.ResponseItem) ExportItem {
 	}
 }
 
-// processItem processes a single item (file or directory).
-// If the item is a directory, recursively processes its contents.
-// If the item is an exportable file, exports and saves it.
-// Errors are logged and processing continues.
-//
-// DownloadItem.Status is used to distinguish:
-//   - "loaded": entry loaded from JSON but not touched in this export
-//   - "downloaded": file was downloaded in this session
-//   - "skipped": file was found and skipped (hash unchanged) in this session
-func (e *Exporter) processItem(item ExportItem, history *DownloadHistory) {
+// processItem processes a single item (file or directory). Directories are processed recursively, exportable files are exported, and errors are logged. DownloadItem.Status distinguishes loaded, downloaded, and skipped states.
+func (e *Exporter) processItem(item ExportItem, history *download_history.DownloadHistory) {
 	switch item.Type {
 	case synd.ObjectTypeDirectory:
 		e.processDirectory(item, history)

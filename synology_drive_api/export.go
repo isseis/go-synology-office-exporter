@@ -5,20 +5,15 @@ import (
 	"io"
 )
 
-// ExportResponse represents the response from exporting a file from Synology Drive
+// ExportResponse contains the result of exporting a file from Synology Drive, including the file name and raw content.
 type ExportResponse struct {
 	Name    string // The name of the exported file
 	Content []byte
 }
 
-// Export exports a Synology Office file from Synology Drive and converts it to the equivalent Microsoft Office format
-// It first retrieves the file information using the Get method, then exports the file using the SYNO.Office.Export API
-// Parameters:
-//   - fileID: The identifier of the file to export
-//
-// Returns:
-//   - *ExportResponse: A response containing the exported file content as raw bytes
-//   - error: An error if the export operation failed, including unsupported file types
+// Export retrieves and converts a Synology Office file to the Microsoft Office format.
+//   - fileID: The identifier of the file to export.
+//   - Returns an ExportResponse with the exported file content, or an error if the operation fails or the file type is unsupported.
 func (s *SynologySession) Export(fileID FileID) (*ExportResponse, error) {
 	ret, err := s.Get(fileID)
 	if err != nil {

@@ -4,31 +4,24 @@ import (
 	"fmt"
 )
 
-// jsonListResponseDataV2 represents the data section of a list response
-// containing items and total count
 type jsonListResponseDataV2 struct {
 	Items []jsonResponseItem `json:"items"`
 	Total int64              `json:"total"`
 }
-
-// jsonListResponseV2 represents the complete response from listing files or folders
 type jsonListResponseV2 struct {
 	synologyAPIResponse
 	Data jsonListResponseDataV2 `json:"data"`
 }
 
-// ListResponse represents the complete response from listing files or folders with proper Go types for improved usability.
 type ListResponse struct {
 	Items []*ResponseItem
 	Total int64
-	raw   []byte // Stores the original raw JSON response
+	raw   []byte
 }
 
 // List retrieves the contents of a folder on Synology Drive.
-//
-//	fileID: The identifier of the folder to list (e.g., MyDrive constant for the root folder)
-//
-// Returns a ListResponse with all items and total count, or an error if the operation fails.
+//   - fileID: The identifier of the folder to list (e.g., MyDrive for the root folder).
+//   - Returns a ListResponse with all items and total count, or an error if the operation fails.
 func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 	req := apiRequest{
 		api:     APINameSynologyDriveFiles,

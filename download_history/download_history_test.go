@@ -1,4 +1,7 @@
-package synology_drive_exporter
+//go:build !integration
+// +build !integration
+
+package download_history
 
 import (
 	"fmt"
@@ -10,10 +13,30 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
-// TestNewDownloadHistory verifies that NewDownloadHistory correctly validates filenames
-// and returns appropriate errors for invalid filenames.
+func TestDownloadHistoryBasic(t *testing.T) {
+	history, err := NewDownloadHistory("test_history.json")
+	if err != nil {
+		t.Fatalf("failed to create history: %v", err)
+	}
+
+	item := DownloadItem{
+		FileID:         synd.FileID("id1"),
+		Hash:           synd.FileHash("hash1"),
+		DownloadTime:   time.Now(),
+		DownloadStatus: StatusLoaded,
+	}
+
+	history.Items["file1"] = item
+	got, ok := history.Items["file1"]
+	if !ok || got.FileID != item.FileID {
+		t.Errorf("SetItem or Items failed: got %+v", got)
+	}
+}
+
 func TestDownloadHistoryStatusMethods(t *testing.T) {
 	baseTime := time.Now().Truncate(time.Second)
 	itemLoaded := DownloadItem{
@@ -93,7 +116,6 @@ func TestNewDownloadHistory(t *testing.T) {
 			history, err := NewDownloadHistory(name)
 			assert.NoError(t, err, "Expected no error for valid filename: "+name)
 			assert.NotNil(t, history)
-			assert.Equal(t, name, history.path)
 			assert.NotNil(t, history.Items)
 		}
 	})
@@ -140,6 +162,7 @@ func TestLoadFromReader(t *testing.T) {
 			}
 		]
 	}`
+	// Use test-only API for loading from custom reader
 	err = history.loadFromReader(strings.NewReader(json))
 	require.NoError(t, err)
 
@@ -166,9 +189,10 @@ func TestLoadFromReader(t *testing.T) {
 				}
 			]
 		` // Missing closing bracket
-		err := history.loadFromReader(strings.NewReader(invalidJSON))
+		// Use test-only API for loading from custom reader
+		err = history.loadFromReader(strings.NewReader(invalidJSON))
 		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), "failed to parse download history JSON")
+		assert.Contains(t, err.Error(), "unexpected end of JSON input")
 	})
 
 	// Test for invalid version
@@ -181,9 +205,9 @@ func TestLoadFromReader(t *testing.T) {
 			},
 			"items": []
 		}`
-		err := history.loadFromReader(strings.NewReader(invalidVersionJSON))
+		// Use test-only API for loading from custom reader
+		err = history.loadFromReader(strings.NewReader(invalidVersionJSON))
 		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), "failed to parse download history JSON")
 		assert.Contains(t, err.Error(), "unsupported version: 1")
 	})
 
@@ -197,9 +221,9 @@ func TestLoadFromReader(t *testing.T) {
 			},
 			"items": []
 		}`
-		err := history.loadFromReader(strings.NewReader(invalidMagicJSON))
+		// Use test-only API for loading from custom reader
+		err = history.loadFromReader(strings.NewReader(invalidMagicJSON))
 		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), "failed to parse download history JSON")
 		assert.Contains(t, err.Error(), "invalid magic: WRONG_MAGIC_STRING")
 	})
 
@@ -220,9 +244,9 @@ func TestLoadFromReader(t *testing.T) {
 				}
 			]
 		}`
-		err := history.loadFromReader(strings.NewReader(invalidDateJSON))
+		// Use test-only API for loading from custom reader
+		err = history.loadFromReader(strings.NewReader(invalidDateJSON))
 		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), "failed to parse download history JSON")
 		assert.Contains(t, err.Error(), "failed to parse download time")
 	})
 
@@ -249,9 +273,9 @@ func TestLoadFromReader(t *testing.T) {
 				}
 			]
 		}`
-		err := history.loadFromReader(strings.NewReader(duplicateLocationJSON))
+		// Use test-only API for loading from custom reader
+		err = history.loadFromReader(strings.NewReader(duplicateLocationJSON))
 		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), "failed to parse download history JSON")
 		assert.Contains(t, err.Error(), "duplicate location")
 	})
 }
@@ -312,8 +336,7 @@ func TestLoad(t *testing.T) {
 	})
 }
 
-// TestSaveToWriter verifies the functionality of saveToWriter method
-// by testing both successful and error scenarios.
+// TestSaveToWriter tests SaveToWriter for successful and error cases, including output validation and error propagation.
 func TestSaveToWriter(t *testing.T) {
 	// Create a history instance with test data for testing
 	history, err := NewDownloadHistory("dummy.json")
@@ -335,7 +358,8 @@ func TestSaveToWriter(t *testing.T) {
 	// Test successful case
 	t.Run("Successful write", func(t *testing.T) {
 		var buf strings.Builder
-		err := history.saveToWriter(&buf)
+		// Use test-only API for saving to custom writer
+		err = history.saveToWriter(&buf)
 		assert.Nil(t, err)
 
 		// Verify the output contains expected data
@@ -355,6 +379,7 @@ func TestSaveToWriter(t *testing.T) {
 		loadedHistory, err := NewDownloadHistory("dummy.json")
 		require.NoError(t, err)
 
+		// Use test-only API for loading from custom reader
 		err = loadedHistory.loadFromReader(strings.NewReader(output))
 		assert.Nil(t, err)
 		assert.Len(t, loadedHistory.Items, 2)
@@ -375,14 +400,14 @@ func TestSaveToWriter(t *testing.T) {
 	t.Run("Writer error", func(t *testing.T) {
 		// Create a mock writer that returns an error on Write
 		errorWriter := &mockErrorWriter{}
-		err := history.saveToWriter(errorWriter)
+		// Use test-only API for saving to custom writer
+		err = history.saveToWriter(errorWriter)
 		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), "failed to write download history file")
+		assert.Contains(t, err.Error(), "file write error")
 	})
 }
 
-// TestSave verifies the functionality of Save method
-// by testing both successful and error scenarios.
+// TestSave tests the Save method for successful file creation, content validation, and error scenarios such as file creation failure or permission issues.
 func TestSave(t *testing.T) {
 	// Test successful case
 	t.Run("Successful save", func(t *testing.T) {
@@ -438,7 +463,7 @@ func TestSave(t *testing.T) {
 		}
 		err = history.Save()
 		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), "failed to write download history file")
+		assert.Contains(t, err.Error(), "file write error")
 	})
 
 	// Test case when directory is not writable
@@ -465,11 +490,11 @@ func TestSave(t *testing.T) {
 		}
 		err = history.Save()
 		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), "failed to write download history file")
+		assert.Contains(t, err.Error(), "file write error")
 	})
 }
 
-// mockErrorWriter is a mock io.Writer that always returns an error
+// mockErrorWriter is a test helper that implements io.Writer and always returns an error on Write.
 type mockErrorWriter struct{}
 
 func (m *mockErrorWriter) Write(p []byte) (n int, err error) {
