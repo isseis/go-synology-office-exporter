@@ -14,6 +14,71 @@ import (
 
 // TestNewDownloadHistory verifies that NewDownloadHistory correctly validates filenames
 // and returns appropriate errors for invalid filenames.
+func TestDownloadHistoryStatusMethods(t *testing.T) {
+	baseTime := time.Now().Truncate(time.Second)
+	itemLoaded := DownloadItem{
+		FileID:         "id1",
+		Hash:           "hash1",
+		DownloadTime:   baseTime,
+		DownloadStatus: StatusLoaded,
+	}
+	itemOther := DownloadItem{
+		FileID:         "id2",
+		Hash:           "hash2",
+		DownloadTime:   baseTime,
+		DownloadStatus: StatusDownloaded,
+	}
+
+	t.Run("MarkSkipped - success", func(t *testing.T) {
+		h, _ := NewDownloadHistory("dummy.json")
+		h.Items["file1"] = itemLoaded
+		err := h.MarkSkipped("file1")
+		assert.NoError(t, err)
+		assert.Equal(t, StatusSkipped, h.Items["file1"].DownloadStatus)
+	})
+	t.Run("MarkSkipped - not found", func(t *testing.T) {
+		h, _ := NewDownloadHistory("dummy.json")
+		err := h.MarkSkipped("notfound")
+		assert.ErrorIs(t, err, ErrHistoryItemNotFound)
+	})
+	t.Run("MarkSkipped - wrong status", func(t *testing.T) {
+		h, _ := NewDownloadHistory("dummy.json")
+		h.Items["file1"] = itemOther
+		err := h.MarkSkipped("file1")
+		assert.ErrorIs(t, err, ErrHistoryInvalidStatus)
+	})
+
+	t.Run("SetDownloaded - update loaded", func(t *testing.T) {
+		h, _ := NewDownloadHistory("dummy.json")
+		h.Items["file2"] = itemLoaded
+		newItem := itemLoaded
+		newItem.FileID = "id3"
+		newItem.Hash = "hash3"
+		newItem.DownloadTime = baseTime.Add(time.Hour)
+		err := h.SetDownloaded("file2", newItem)
+		assert.NoError(t, err)
+		assert.Equal(t, StatusDownloaded, h.Items["file2"].DownloadStatus)
+		assert.Equal(t, "id3", string(h.Items["file2"].FileID))
+		assert.Equal(t, "hash3", string(h.Items["file2"].Hash))
+		assert.Equal(t, baseTime.Add(time.Hour), h.Items["file2"].DownloadTime)
+	})
+	t.Run("SetDownloaded - add new", func(t *testing.T) {
+		h, _ := NewDownloadHistory("dummy.json")
+		item := itemLoaded
+		item.DownloadStatus = StatusLoaded
+		err := h.SetDownloaded("file3", item)
+		assert.NoError(t, err)
+		assert.Equal(t, StatusDownloaded, h.Items["file3"].DownloadStatus)
+	})
+	t.Run("SetDownloaded - error on wrong status", func(t *testing.T) {
+		h, _ := NewDownloadHistory("dummy.json")
+		h.Items["file2"] = itemOther
+		newItem := itemOther
+		err := h.SetDownloaded("file2", newItem)
+		assert.ErrorIs(t, err, ErrHistoryInvalidStatus)
+	})
+}
+
 func TestNewDownloadHistory(t *testing.T) {
 	t.Run("Valid filename", func(t *testing.T) {
 		validNames := []string{

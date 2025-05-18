@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
@@ -45,6 +46,50 @@ type DownloadHistory struct {
 	ErrorCount    counter
 }
 
+// ErrHistoryItemNotFound is returned when the specified item does not exist in the history.
+var ErrHistoryItemNotFound = fmt.Errorf("download history item not found")
+
+// ErrHistoryInvalidStatus is returned when the item's status does not match the expected state.
+var ErrHistoryInvalidStatus = fmt.Errorf("download history item status is invalid")
+
+// SetItem sets or updates a DownloadItem for the given location in the download history.
+// This method should be used instead of direct access to the Items field from outside this struct.
+func (d *DownloadHistory) SetItem(location string, item DownloadItem) {
+	d.Items[location] = item
+}
+
+// MarkSkipped sets the status of an existing item to 'skipped' if its current status is 'loaded'.
+// Returns an error if the item does not exist or its status is not 'loaded'.
+func (d *DownloadHistory) MarkSkipped(location string) error {
+	item, ok := d.Items[location]
+	if !ok {
+		return ErrHistoryItemNotFound
+	}
+	if item.DownloadStatus != StatusLoaded {
+		return ErrHistoryInvalidStatus
+	}
+	item.DownloadStatus = StatusSkipped
+	d.Items[location] = item
+	return nil
+}
+
+// SetDownloaded adds a new item with status 'downloaded' if it does not exist, or updates an existing item
+// to 'downloaded' if its current status is 'loaded'. Returns an error if the item exists and its status is not 'loaded'.
+func (d *DownloadHistory) SetDownloaded(location string, item DownloadItem) error {
+	existing, ok := d.Items[location]
+	if ok {
+		if existing.DownloadStatus != StatusLoaded {
+			return ErrHistoryInvalidStatus
+		}
+		item.DownloadStatus = StatusDownloaded
+		d.Items[location] = item
+		return nil
+	}
+	item.DownloadStatus = StatusDownloaded
+	d.Items[location] = item
+	return nil
+}
+
 // GetStats returns the current export statistics.
 func (d *DownloadHistory) GetStats() ExportStats {
 	return ExportStats{
@@ -55,12 +100,21 @@ func (d *DownloadHistory) GetStats() ExportStats {
 	}
 }
 
+// GetItemByDisplayPath looks up a DownloadItem by its display path.
+// It returns the item and true if found, or false if not found.
+func (d *DownloadHistory) GetItemByDisplayPath(displayPath string) (DownloadItem, bool) {
+	key := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(displayPath)), "/")
+	item, exists := d.Items[key]
+	return item, exists
+}
+
 type jsonHeader struct {
 	Version int    `json:"version"`
 	Magic   string `json:"magic"`
 	Created string `json:"created"`
 }
 
+// jsonDownloadItem is used for marshaling/unmarshaling DownloadItem to/from JSON.
 type jsonDownloadItem struct {
 	Location     string        `json:"location"`
 	FileID       synd.FileID   `json:"file_id"`
@@ -73,10 +127,21 @@ type jsonDownloadHistory struct {
 	Items  []jsonDownloadItem `json:"items"`
 }
 
+// DownloadStatus represents the state of a DownloadItem (enum-like string type).
+type DownloadStatus string
+
+const (
+	StatusLoaded     DownloadStatus = "loaded"
+	StatusDownloaded DownloadStatus = "downloaded"
+	StatusSkipped    DownloadStatus = "skipped"
+)
+
+// DownloadItem holds information about a downloaded or tracked file, including its status.
 type DownloadItem struct {
-	FileID       synd.FileID
-	Hash         synd.FileHash
-	DownloadTime time.Time
+	FileID         synd.FileID
+	Hash           synd.FileHash
+	DownloadTime   time.Time
+	DownloadStatus DownloadStatus
 }
 
 /**
@@ -114,6 +179,7 @@ func (hdr *jsonHeader) validate() error {
 	return nil
 }
 
+// loadFromReader loads DownloadItems from JSON and sets Status to "loaded" if not present.
 func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 	content, err := io.ReadAll(r)
 	if err != nil {
@@ -138,12 +204,15 @@ func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 		if _, exists := d.Items[item.Location]; exists {
 			return DownloadHistoryParseError(fmt.Sprintf("duplicate location: %s", item.Location))
 		}
+		// Always initialize Status as StatusLoaded on load
 		d.Items[item.Location] = DownloadItem{
-			FileID:       item.FileID,
-			Hash:         item.Hash,
-			DownloadTime: downloadTime,
+			FileID:         item.FileID,
+			Hash:           item.Hash,
+			DownloadTime:   downloadTime,
+			DownloadStatus: StatusLoaded,
 		}
 	}
+
 	return nil
 }
 
@@ -164,6 +233,7 @@ func (d *DownloadHistory) Load() error {
 	return d.loadFromReader(file)
 }
 
+// saveToWriter writes DownloadItems to JSON.
 func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 	header := jsonHeader{
 		Version: HISTORY_VERSION,
@@ -195,11 +265,8 @@ func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 		return DownloadHistoryFileWriteError(err.Error())
 	}
 	return nil
-
 }
 
-// Save writes the download history to the JSON file specified during initialization.
-// It returns a DownloadHistoryFileError if the file cannot be created or written to.
 // Save writes the download history to the JSON file specified during initialization.
 // It returns a DownloadHistoryFileError if the file cannot be created or written to.
 func (d *DownloadHistory) Save() error {

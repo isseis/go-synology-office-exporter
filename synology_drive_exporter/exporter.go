@@ -188,10 +188,16 @@ func (e *Exporter) processDirectory(item ExportItem, history *DownloadHistory) {
 	}
 }
 
-// processFile exports a single convertible Synology Office file.
+// processFile exports a single convertible Synology Office file and updates the download history accordingly.
+//
 // Parameters:
-//   - item: The Synology Office file to export (ExportItem type fields required)
-//   - history: DownloadHistory instance to record downloaded files
+//   - item: ExportItem representing the Synology Office file to export
+//   - history: DownloadHistory instance to record and update download status
+//
+// If the file is not exportable, increments the ignored counter.
+// If the file was already exported and hash is unchanged, increments the skipped counter and marks status as "skipped".
+// Otherwise, exports and saves the file, then records or updates its status as "downloaded".
+// All status transitions are performed via DownloadHistory methods with precondition checks.
 func (e *Exporter) processFile(item ExportItem, history *DownloadHistory) {
 	exportName := synd.GetExportFileName(item.DisplayPath)
 	if exportName == "" {
@@ -204,6 +210,11 @@ func (e *Exporter) processFile(item ExportItem, history *DownloadHistory) {
 	if prev, downloaded := history.Items[localPath]; downloaded && prev.Hash == item.Hash {
 		fmt.Printf("Skip (already exported and hash unchanged): %s\n", localPath)
 		history.SkippedCount.Increment()
+		// Mark as skipped only if current status is "loaded" (precondition checked in method)
+		err := history.MarkSkipped(localPath)
+		if err != nil {
+			fmt.Printf("Warning: could not mark as skipped: %v\n", err)
+		}
 		return
 	}
 	fmt.Printf("Exporting file: %s\n", exportName)
@@ -221,10 +232,16 @@ func (e *Exporter) processFile(item ExportItem, history *DownloadHistory) {
 	}
 
 	fmt.Printf("Saved to: %s\n", downloadPath)
-	history.Items[localPath] = DownloadItem{
+	// Update download history: if entry exists, mark as downloaded (only if loaded); otherwise add as new downloaded entry.
+	newItem := DownloadItem{
 		FileID:       item.FileID,
 		Hash:         item.Hash,
 		DownloadTime: time.Now(),
+	}
+	// SetDownloaded: add new entry or update existing (if loaded) to 'downloaded'.
+	errHistory := history.SetDownloaded(localPath, newItem)
+	if errHistory != nil {
+		fmt.Printf("Warning: could not update download history: %v\n", errHistory)
 	}
 	history.DownloadCount.Increment()
 }
@@ -253,6 +270,11 @@ func toExportItem(item *synd.ResponseItem) ExportItem {
 // If the item is a directory, recursively processes its contents.
 // If the item is an exportable file, exports and saves it.
 // Errors are logged and processing continues.
+//
+// DownloadItem.Status is used to distinguish:
+//   - "loaded": entry loaded from JSON but not touched in this export
+//   - "downloaded": file was downloaded in this session
+//   - "skipped": file was found and skipped (hash unchanged) in this session
 func (e *Exporter) processItem(item ExportItem, history *DownloadHistory) {
 	switch item.Type {
 	case synd.ObjectTypeDirectory:
