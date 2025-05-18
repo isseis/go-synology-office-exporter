@@ -680,7 +680,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		}
 		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processFile(item, history)
-		// Inline getHistoryItemByDisplayPath logic (was: dlItem := getHistoryItemByDisplayPath(...))
+		// Retrieve the history item by display path.
 		dlItem, exists := history.GetItem(download_history.MakeHistoryKey(item.DisplayPath))
 		require.True(t, exists, "expected item to exist in history for path: %s", item.DisplayPath)
 		if dlItem.DownloadStatus != download_history.StatusDownloaded {
