@@ -36,7 +36,6 @@ type ExportStats struct {
 }
 
 // DownloadHistory manages the download state and statistics.
-// DownloadHistory manages the download state and statistics.
 type DownloadHistory struct {
 	items map[string]DownloadItem // items holds the download history, private for encapsulation
 	path  string
