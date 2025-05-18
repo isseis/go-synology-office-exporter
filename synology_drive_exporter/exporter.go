@@ -346,8 +346,6 @@ func (e *Exporter) processItem(item ExportItem, history *download_history.Downlo
 	}
 }
 
-// removeFile removes the specified file from the filesystem
-// In DryRun mode, it only logs the operation without actually removing the file
 // removeFile removes the specified file from the filesystem.
 // In DryRun mode, it only logs the operation without actually removing the file.
 func (e *Exporter) removeFile(path string) error {
