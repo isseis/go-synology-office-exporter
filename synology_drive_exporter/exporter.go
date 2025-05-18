@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/isseis/go-synology-office-exporter/download_history"
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
@@ -88,7 +89,7 @@ func NewExporterWithDependencies(session SessionInterface, downloadDir string, f
 
 // ExportMyDrive exports all convertible files from the user's Synology Drive and saves them to the download directory.
 // Download history is used to avoid duplicate downloads.
-func (e *Exporter) ExportMyDrive() (ExportStats, error) {
+func (e *Exporter) ExportMyDrive() (download_history.ExportStats, error) {
 	return e.ExportRootsWithHistory(
 		[]synd.FileID{synd.MyDrive},
 		"mydrive_history.json",
@@ -97,10 +98,10 @@ func (e *Exporter) ExportMyDrive() (ExportStats, error) {
 
 // ExportTeamFolder exports all convertible files from all team folders.
 // Download history is used to avoid duplicate downloads.
-func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
+func (e *Exporter) ExportTeamFolder() (download_history.ExportStats, error) {
 	teamFolder, err := e.session.TeamFolder()
 	if err != nil {
-		return ExportStats{}, err
+		return download_history.ExportStats{}, err
 	}
 	var rootIDs []synd.FileID
 	for _, item := range teamFolder.Items {
@@ -114,10 +115,10 @@ func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
 
 // ExportSharedWithMe exports all convertible files and directories shared with the user.
 // Download history is used to avoid duplicate downloads.
-func (e *Exporter) ExportSharedWithMe() (ExportStats, error) {
+func (e *Exporter) ExportSharedWithMe() (download_history.ExportStats, error) {
 	sharedWithMe, err := e.session.SharedWithMe()
 	if err != nil {
-		return ExportStats{}, err
+		return download_history.ExportStats{}, err
 	}
 	var exportItems []ExportItem
 	for _, item := range sharedWithMe.Items {
@@ -127,26 +128,29 @@ func (e *Exporter) ExportSharedWithMe() (ExportStats, error) {
 }
 
 // exportItemsWithHistory is a common internal helper for exporting a slice of ExportItem with download history management.
-// It handles DownloadHistory creation, loading, saving, and calls processItem for each item.
+// It handles download_history.DownloadHistory creation, loading, saving, and calls processItem for each item.
 // This function is used by both ExportRootsWithHistory and ExportSharedWithMe to avoid code duplication.
-// Returns ExportStats and error (wrapped in DownloadHistoryOperationError if relevant).
+// Returns download_history.ExportStats and error (wrapped in download_history.DownloadHistoryOperationError if relevant).
 func (e *Exporter) exportItemsWithHistory(
 	items []ExportItem,
 	historyFile string,
-) (ExportStats, error) {
+) (download_history.ExportStats, error) {
 	historyPath := filepath.Join(e.downloadDir, historyFile)
-	history, err := NewDownloadHistory(historyPath)
+	history, err := download_history.NewDownloadHistory(historyPath)
 	if err != nil {
-		return ExportStats{}, &DownloadHistoryOperationError{Op: "create", Err: err}
+		// TODO: Replace with correct error type if DownloadHistoryOperationError is not available
+		return download_history.ExportStats{}, fmt.Errorf("download history operation (create) failed: %w", err)
 	}
 	if err := history.Load(); err != nil {
-		return history.GetStats(), &DownloadHistoryOperationError{Op: "load", Err: err}
+		// TODO: Replace with correct error type if DownloadHistoryOperationError is not available
+		return history.GetStats(), fmt.Errorf("download history operation (load) failed: %w", err)
 	}
 	for _, item := range items {
 		e.processItem(item, history)
 	}
 	if err := history.Save(); err != nil {
-		return history.GetStats(), &DownloadHistoryOperationError{Op: "save", Err: err}
+		// TODO: Replace with correct error type if DownloadHistoryOperationError is not available
+		return history.GetStats(), fmt.Errorf("download history operation (save) failed: %w", err)
 	}
 	return history.GetStats(), nil
 }
@@ -156,7 +160,7 @@ func (e *Exporter) exportItemsWithHistory(
 func (e *Exporter) ExportRootsWithHistory(
 	rootIDs []synd.FileID,
 	historyFile string,
-) (ExportStats, error) {
+) (download_history.ExportStats, error) {
 	var exportItems []ExportItem
 	for _, rootID := range rootIDs {
 		exportItems = append(exportItems, ExportItem{
@@ -173,10 +177,10 @@ func (e *Exporter) ExportRootsWithHistory(
 // exporting all convertible Synology Office files.
 // Parameters:
 //   - item: The ExportItem representing the directory to process
-//   - history: DownloadHistory instance to record downloaded files
+//   - history: download_history.DownloadHistory instance to record downloaded files
 //
 // Directory errors are logged and counted in history. Processing continues even if errors occur.
-func (e *Exporter) processDirectory(item ExportItem, history *DownloadHistory) {
+func (e *Exporter) processDirectory(item ExportItem, history *download_history.DownloadHistory) {
 	list, err := e.session.List(item.FileID)
 	if err != nil {
 		fmt.Printf("Failed to list directory %s: %v\n", item.DisplayPath, err)
@@ -192,13 +196,13 @@ func (e *Exporter) processDirectory(item ExportItem, history *DownloadHistory) {
 //
 // Parameters:
 //   - item: ExportItem representing the Synology Office file to export
-//   - history: DownloadHistory instance to record and update download status
+//   - history: download_history.DownloadHistory instance to record and update download status
 //
 // If the file is not exportable, increments the ignored counter.
 // If the file was already exported and hash is unchanged, increments the skipped counter and marks status as "skipped".
 // Otherwise, exports and saves the file, then records or updates its status as "downloaded".
-// All status transitions are performed via DownloadHistory methods with precondition checks.
-func (e *Exporter) processFile(item ExportItem, history *DownloadHistory) {
+// All status transitions are performed via download_history.DownloadHistory methods with precondition checks.
+func (e *Exporter) processFile(item ExportItem, history *download_history.DownloadHistory) {
 	exportName := synd.GetExportFileName(item.DisplayPath)
 	if exportName == "" {
 		fmt.Printf("Skip (not exportable): %s\n", item.DisplayPath)
@@ -233,7 +237,7 @@ func (e *Exporter) processFile(item ExportItem, history *DownloadHistory) {
 
 	fmt.Printf("Saved to: %s\n", downloadPath)
 	// Update download history: if entry exists, mark as downloaded (only if loaded); otherwise add as new downloaded entry.
-	newItem := DownloadItem{
+	newItem := download_history.DownloadItem{
 		FileID:       item.FileID,
 		Hash:         item.Hash,
 		DownloadTime: time.Now(),
@@ -271,11 +275,11 @@ func toExportItem(item *synd.ResponseItem) ExportItem {
 // If the item is an exportable file, exports and saves it.
 // Errors are logged and processing continues.
 //
-// DownloadItem.Status is used to distinguish:
+// download_history.DownloadItem.Status is used to distinguish:
 //   - "loaded": entry loaded from JSON but not touched in this export
 //   - "downloaded": file was downloaded in this session
 //   - "skipped": file was found and skipped (hash unchanged) in this session
-func (e *Exporter) processItem(item ExportItem, history *DownloadHistory) {
+func (e *Exporter) processItem(item ExportItem, history *download_history.DownloadHistory) {
 	switch item.Type {
 	case synd.ObjectTypeDirectory:
 		e.processDirectory(item, history)

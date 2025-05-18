@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"maps"
+	"github.com/stretchr/testify/require"
 
+	"github.com/isseis/go-synology-office-exporter/download_history"
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
@@ -517,18 +518,8 @@ func TestExporterExportMyDrive(t *testing.T) {
 	}
 }
 
-// validateExportedFile checks that a file was exported correctly by inspecting the mock file system.
 func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFileSystem, exportErrors map[synd.FileID]error, fileOpError error) {
 	// Implementation omitted for this test; see above for details.
-}
-
-// newTestDownloadHistory creates a DownloadHistory instance for testing.
-func newTestDownloadHistory(items map[string]DownloadItem) *DownloadHistory {
-	history := &DownloadHistory{
-		Items: make(map[string]DownloadItem),
-	}
-	maps.Copy(history.Items, items)
-	return history
 }
 
 // makeTestKey generates a key for the given display path for testing purposes.
@@ -537,7 +528,7 @@ func makeTestKey(displayPath string) string {
 	return strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(displayPath)), "/")
 }
 
-// TestExporter_Counts verifies that DownloadHistory's counters are incremented correctly.
+// TestExporter_Counts verifies that download_history.NewDownloadHistory's counters are incremented correctly.
 func TestExporter_Counts(t *testing.T) {
 	fileID := synd.FileID("file1")
 	fileHash := synd.FileHash("hash1")
@@ -555,7 +546,8 @@ func TestExporter_Counts(t *testing.T) {
 			},
 		}
 		mockFS := NewMockFileSystem()
-		history := newTestDownloadHistory(nil)
+		history, err := download_history.NewDownloadHistory("test_history.json")
+		require.NoError(t, err)
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      fileID,
@@ -576,9 +568,11 @@ func TestExporter_Counts(t *testing.T) {
 			},
 		}
 		mockFS := NewMockFileSystem()
-		history := newTestDownloadHistory(map[string]DownloadItem{
+		history, err := download_history.NewDownloadHistory("test_history.json")
+		require.NoError(t, err)
+		history.Items = map[string]download_history.DownloadItem{
 			cleanPath: {FileID: fileID, Hash: fileHash},
-		})
+		}
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      fileID,
@@ -595,7 +589,8 @@ func TestExporter_Counts(t *testing.T) {
 	t.Run("IgnoredCount increments if file is not exportable", func(t *testing.T) {
 		session := &MockSynologySession{}
 		mockFS := NewMockFileSystem()
-		history := newTestDownloadHistory(nil)
+		history, err := download_history.NewDownloadHistory("test_history.json")
+		require.NoError(t, err)
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      ignoredFileID,
@@ -616,7 +611,8 @@ func TestExporter_Counts(t *testing.T) {
 			},
 		}
 		mockFS := NewMockFileSystem()
-		history := newTestDownloadHistory(nil)
+		history, err := download_history.NewDownloadHistory("test_history.json")
+		require.NoError(t, err)
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      fileID2,
@@ -640,7 +636,8 @@ func TestExporter_Counts(t *testing.T) {
 		mockFS.CreateFileFunc = func(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
 			return errors.New("write failed")
 		}
-		history := newTestDownloadHistory(nil)
+		history, err := download_history.NewDownloadHistory("test_history.json")
+		require.NoError(t, err)
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      fileID2,
@@ -661,14 +658,15 @@ func TestExporter_Counts(t *testing.T) {
 // 3. Downloads if history does not exist
 func TestExportItem_HistoryAndHash(t *testing.T) {
 	// --- DownloadStatus unit tests ---
-	t.Run("StatusDownloaded when new", func(t *testing.T) {
+	t.Run("download_history.StatusDownloaded when new", func(t *testing.T) {
 		session := &MockSynologySession{
 			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
 				return &synd.ExportResponse{Content: []byte("file content")}, nil
 			},
 		}
 		mockFS := NewMockFileSystem()
-		history := newTestDownloadHistory(nil)
+		history, err := download_history.NewDownloadHistory("test_history.json")
+		require.NoError(t, err)
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      "file1",
@@ -681,12 +679,12 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		if !exists {
 			t.Fatal("expected item to exist in history")
 		}
-		if dlItem.DownloadStatus != StatusDownloaded {
-			t.Errorf("expected StatusDownloaded, got %v", dlItem.DownloadStatus)
+		if dlItem.DownloadStatus != download_history.StatusDownloaded {
+			t.Errorf("expected download_history.StatusDownloaded, got %v", dlItem.DownloadStatus)
 		}
 	})
 
-	t.Run("StatusSkipped when hash unchanged", func(t *testing.T) {
+	t.Run("download_history.StatusSkipped when hash unchanged", func(t *testing.T) {
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      "file1",
@@ -695,9 +693,11 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		}
 		initialTime := time.Date(2024, 5, 18, 8, 0, 0, 0, time.UTC)
 		path := makeTestKey(item.DisplayPath)
-		history := newTestDownloadHistory(map[string]DownloadItem{
-			path: {FileID: "file1", Hash: "hash1", DownloadStatus: StatusLoaded, DownloadTime: initialTime},
-		})
+		history, err := download_history.NewDownloadHistory("test_history.json")
+		require.NoError(t, err)
+		history.Items = map[string]download_history.DownloadItem{
+			path: {FileID: "file1", Hash: "hash1", DownloadStatus: download_history.StatusLoaded, DownloadTime: initialTime},
+		}
 		session := &MockSynologySession{
 			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
 				return &synd.ExportResponse{Content: []byte("file content")}, nil
@@ -710,8 +710,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		if !exists {
 			t.Fatal("expected item to exist in history")
 		}
-		if dlItem.DownloadStatus != StatusSkipped {
-			t.Errorf("expected StatusSkipped, got %v", dlItem.DownloadStatus)
+		if dlItem.DownloadStatus != download_history.StatusSkipped {
+			t.Errorf("expected download_history.StatusSkipped, got %v", dlItem.DownloadStatus)
 		}
 		if !dlItem.DownloadTime.Equal(initialTime) {
 			t.Errorf("expected DownloadTime to remain unchanged, got %v want %v", dlItem.DownloadTime, initialTime)
@@ -719,16 +719,18 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 	})
 
 	// --- Integration test: coexistence of loaded, downloaded, skipped ---
-	t.Run("StatusLoaded, StatusDownloaded, StatusSkipped coexistence", func(t *testing.T) {
+	t.Run("download_history.StatusLoaded, download_history.StatusDownloaded, download_history.StatusSkipped coexistence", func(t *testing.T) {
 		// Setup: 3 files in history, only 2 are present in exportItems
 		item1 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file1", DisplayPath: "/doc/test1.odoc", Hash: "hash1"}     // hash unchanged
 		item2 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file2", DisplayPath: "/doc/test2.odoc", Hash: "hash2-new"} // hash changed
 		item3 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file3", DisplayPath: "/doc/test3.odoc", Hash: "hash3"}     // only in history
-		history := newTestDownloadHistory(map[string]DownloadItem{
-			makeTestKey(item1.DisplayPath): {FileID: "file1", Hash: "hash1", DownloadStatus: StatusLoaded},
-			makeTestKey(item2.DisplayPath): {FileID: "file2", Hash: "hash2-old", DownloadStatus: StatusLoaded},
-			makeTestKey(item3.DisplayPath): {FileID: "file3", Hash: "hash3", DownloadStatus: StatusLoaded},
-		})
+		history, err := download_history.NewDownloadHistory("test_history.json")
+		require.NoError(t, err)
+		history.Items = map[string]download_history.DownloadItem{
+			makeTestKey(item1.DisplayPath): {FileID: "file1", Hash: "hash1", DownloadStatus: download_history.StatusLoaded},
+			makeTestKey(item2.DisplayPath): {FileID: "file2", Hash: "hash2-old", DownloadStatus: download_history.StatusLoaded},
+			makeTestKey(item3.DisplayPath): {FileID: "file3", Hash: "hash3", DownloadStatus: download_history.StatusLoaded},
+		}
 		session := &MockSynologySession{
 			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
 				return &synd.ExportResponse{Content: []byte("file content")}, nil
@@ -745,8 +747,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		if !exists {
 			t.Fatal("expected item1 to exist in history")
 		}
-		if item1Status.DownloadStatus != StatusSkipped {
-			t.Errorf("expected StatusSkipped for item1, got %v", item1Status.DownloadStatus)
+		if item1Status.DownloadStatus != download_history.StatusSkipped {
+			t.Errorf("expected download_history.StatusSkipped for item1, got %v", item1Status.DownloadStatus)
 		}
 
 		// Check item2 status (should be downloaded)
@@ -754,8 +756,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		if !exists {
 			t.Fatal("expected item2 to exist in history")
 		}
-		if item2Status.DownloadStatus != StatusDownloaded {
-			t.Errorf("expected StatusDownloaded for item2, got %v", item2Status.DownloadStatus)
+		if item2Status.DownloadStatus != download_history.StatusDownloaded {
+			t.Errorf("expected download_history.StatusDownloaded for item2, got %v", item2Status.DownloadStatus)
 		}
 
 		// Check item3 status (should remain loaded)
@@ -763,8 +765,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		if !exists {
 			t.Fatal("expected item3 to exist in history")
 		}
-		if item3Status.DownloadStatus != StatusLoaded {
-			t.Errorf("expected StatusLoaded for item3, got %v", item3Status.DownloadStatus)
+		if item3Status.DownloadStatus != download_history.StatusLoaded {
+			t.Errorf("expected download_history.StatusLoaded for item3, got %v", item3Status.DownloadStatus)
 		}
 	})
 
@@ -775,25 +777,25 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 	cleanPath := makeTestKey(displayPath)
 	cases := []struct {
 		name        string
-		history     map[string]DownloadItem
+		history     map[string]download_history.DownloadItem
 		itemHash    synd.FileHash
 		expectWrite bool
 	}{
 		{
 			name:        "skip if hash unchanged",
-			history:     map[string]DownloadItem{cleanPath: {FileID: fileID, Hash: fileHashOld}},
+			history:     map[string]download_history.DownloadItem{cleanPath: {FileID: fileID, Hash: fileHashOld}},
 			itemHash:    fileHashOld,
 			expectWrite: false,
 		},
 		{
 			name:        "download if hash changed",
-			history:     map[string]DownloadItem{cleanPath: {FileID: fileID, Hash: fileHashOld}},
+			history:     map[string]download_history.DownloadItem{cleanPath: {FileID: fileID, Hash: fileHashOld}},
 			itemHash:    fileHashNew,
 			expectWrite: true,
 		},
 		{
 			name:        "download if not in history",
-			history:     map[string]DownloadItem{},
+			history:     map[string]download_history.DownloadItem{},
 			itemHash:    fileHashNew,
 			expectWrite: true,
 		},
@@ -813,7 +815,9 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 				writeCalled = true
 				return nil
 			}
-			history := newTestDownloadHistory(tc.history)
+			history, err := download_history.NewDownloadHistory("test_history.json")
+			require.NoError(t, err)
+			history.Items = tc.history
 			item := ExportItem{
 				Type:        synd.ObjectTypeFile,
 				FileID:      fileID,

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	download_history "github.com/isseis/go-synology-office-exporter/download_history"
 	syndexp "github.com/isseis/go-synology-office-exporter/synology_drive_exporter"
 	"github.com/joho/godotenv"
 )
@@ -147,7 +148,7 @@ func main() {
 
 	// Run the export for each specified source
 	for _, source := range sources {
-		var stats syndexp.ExportStats
+		var stats download_history.ExportStats
 		var err error
 
 		switch source {
