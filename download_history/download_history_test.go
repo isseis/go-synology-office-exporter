@@ -30,8 +30,8 @@ func TestDownloadHistoryBasic(t *testing.T) {
 		DownloadStatus: StatusLoaded,
 	}
 
-	history.Items["file1"] = item
-	got, ok := history.Items["file1"]
+	history.SetItems(map[string]DownloadItem{"file1": item})
+	got, ok := history.items["file1"]
 	if !ok || got.FileID != item.FileID {
 		t.Errorf("SetItem or Items failed: got %+v", got)
 	}
@@ -54,10 +54,10 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 
 	t.Run("MarkSkipped - success", func(t *testing.T) {
 		h, _ := NewDownloadHistory("dummy.json")
-		h.Items["file1"] = itemLoaded
+		h.SetItems(map[string]DownloadItem{"file1": itemLoaded})
 		err := h.MarkSkipped("file1")
 		assert.NoError(t, err)
-		assert.Equal(t, StatusSkipped, h.Items["file1"].DownloadStatus)
+		assert.Equal(t, StatusSkipped, h.items["file1"].DownloadStatus)
 	})
 	t.Run("MarkSkipped - not found", func(t *testing.T) {
 		h, _ := NewDownloadHistory("dummy.json")
@@ -66,25 +66,25 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 	})
 	t.Run("MarkSkipped - wrong status", func(t *testing.T) {
 		h, _ := NewDownloadHistory("dummy.json")
-		h.Items["file1"] = itemOther
+		h.SetItems(map[string]DownloadItem{"file1": itemOther})
 		err := h.MarkSkipped("file1")
 		assert.ErrorIs(t, err, ErrHistoryInvalidStatus)
-		assert.Equal(t, StatusDownloaded, h.Items["file1"].DownloadStatus)
+		assert.Equal(t, StatusDownloaded, h.items["file1"].DownloadStatus)
 	})
 
 	t.Run("SetDownloaded - update loaded", func(t *testing.T) {
 		h, _ := NewDownloadHistory("dummy.json")
-		h.Items["file2"] = itemLoaded
+		h.SetItems(map[string]DownloadItem{"file2": itemLoaded})
 		newItem := itemLoaded
 		newItem.FileID = "id3"
 		newItem.Hash = "hash3"
 		newItem.DownloadTime = baseTime.Add(time.Hour)
 		err := h.SetDownloaded("file2", newItem)
 		assert.NoError(t, err)
-		assert.Equal(t, StatusDownloaded, h.Items["file2"].DownloadStatus)
-		assert.Equal(t, "id3", string(h.Items["file2"].FileID))
-		assert.Equal(t, "hash3", string(h.Items["file2"].Hash))
-		assert.Equal(t, baseTime.Add(time.Hour), h.Items["file2"].DownloadTime)
+		assert.Equal(t, StatusDownloaded, h.items["file2"].DownloadStatus)
+		assert.Equal(t, "id3", string(h.items["file2"].FileID))
+		assert.Equal(t, "hash3", string(h.items["file2"].Hash))
+		assert.Equal(t, baseTime.Add(time.Hour), h.items["file2"].DownloadTime)
 	})
 	t.Run("SetDownloaded - add new", func(t *testing.T) {
 		h, _ := NewDownloadHistory("dummy.json")
@@ -92,11 +92,11 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 		item.DownloadStatus = StatusLoaded
 		err := h.SetDownloaded("file3", item)
 		assert.NoError(t, err)
-		assert.Equal(t, StatusDownloaded, h.Items["file3"].DownloadStatus)
+		assert.Equal(t, StatusDownloaded, h.items["file3"].DownloadStatus)
 	})
 	t.Run("SetDownloaded - error on wrong status", func(t *testing.T) {
 		h, _ := NewDownloadHistory("dummy.json")
-		h.Items["file2"] = itemOther
+		h.SetItems(map[string]DownloadItem{"file2": itemOther})
 		newItem := itemOther
 		err := h.SetDownloaded("file2", newItem)
 		assert.ErrorIs(t, err, ErrHistoryInvalidStatus)
@@ -117,7 +117,7 @@ func TestNewDownloadHistory(t *testing.T) {
 			history, err := NewDownloadHistory(name)
 			assert.NoError(t, err, "Expected no error for valid filename: "+name)
 			assert.NotNil(t, history)
-			assert.NotNil(t, history.Items)
+			assert.NotNil(t, history.items)
 		}
 	})
 
@@ -167,7 +167,7 @@ func TestLoadFromReader(t *testing.T) {
 	err = history.loadFromReader(strings.NewReader(json))
 	require.NoError(t, err)
 
-	item := history.Items["/path/to/file.odoc"]
+	item := history.items["/path/to/file.odoc"]
 	require.NotNil(t, item)
 	assert.Equal(t, "882614125167948399", string(item.FileID))
 	assert.Equal(t, "1234567890abcdef", string(item.Hash))
@@ -312,11 +312,11 @@ func TestLoad(t *testing.T) {
 
 		err = history.Load()
 		assert.Nil(t, err)
-		assert.Len(t, history.Items, 1)
-		assert.Contains(t, history.Items, "/path/to/file.odoc")
+		assert.Len(t, history.items, 1)
+		assert.Contains(t, history.items, "/path/to/file.odoc")
 
 		// Verify that the values are loaded correctly
-		item, exists := history.Items["/path/to/file.odoc"]
+		item, exists := history.items["/path/to/file.odoc"]
 		assert.True(t, exists)
 		assert.Equal(t, "882614125167948399", string(item.FileID))
 		assert.Equal(t, "1234567890abcdef", string(item.Hash))
@@ -343,7 +343,7 @@ func TestSaveToWriter(t *testing.T) {
 	history, err := NewDownloadHistory("dummy.json")
 	require.NoError(t, err)
 
-	history.Items = map[string]DownloadItem{
+	history.SetItems(map[string]DownloadItem{
 		"/path/to/file1.odoc": {
 			FileID:       "882614125167948399",
 			Hash:         "1234567890abcdef",
@@ -354,7 +354,7 @@ func TestSaveToWriter(t *testing.T) {
 			Hash:         "abcdef1234567890",
 			DownloadTime: time.Date(2023, 10, 2, 8, 17, 39, 0, time.UTC),
 		},
-	}
+	})
 
 	// Test successful case
 	t.Run("Successful write", func(t *testing.T) {
@@ -383,15 +383,15 @@ func TestSaveToWriter(t *testing.T) {
 		// Use test-only API for loading from custom reader
 		err = loadedHistory.loadFromReader(strings.NewReader(output))
 		assert.Nil(t, err)
-		assert.Len(t, loadedHistory.Items, 2)
+		assert.Len(t, loadedHistory.items, 2)
 
 		// Verify timestamps with non-zero minutes and seconds are preserved
-		file1, exists := loadedHistory.Items["/path/to/file1.odoc"]
+		file1, exists := loadedHistory.items["/path/to/file1.odoc"]
 		assert.True(t, exists)
 		assert.Equal(t, 45, file1.DownloadTime.Minute())
 		assert.Equal(t, 23, file1.DownloadTime.Second())
 
-		file2, exists := loadedHistory.Items["/path/to/file2.odoc"]
+		file2, exists := loadedHistory.items["/path/to/file2.odoc"]
 		assert.True(t, exists)
 		assert.Equal(t, 17, file2.DownloadTime.Minute())
 		assert.Equal(t, 39, file2.DownloadTime.Second())
@@ -419,13 +419,13 @@ func TestSave(t *testing.T) {
 		history, err := NewDownloadHistory(jsonPath)
 		require.NoError(t, err)
 
-		history.Items = map[string]DownloadItem{
+		history.SetItems(map[string]DownloadItem{
 			"/path/to/file.odoc": {
 				FileID:       "882614125167948399",
 				Hash:         "1234567890abcdef",
 				DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
 			},
-		}
+		})
 
 		err = history.Save()
 		assert.Nil(t, err)
@@ -446,7 +446,7 @@ func TestSave(t *testing.T) {
 
 		err = loadedHistory.Load()
 		assert.Nil(t, err)
-		assert.Len(t, loadedHistory.Items, 1)
+		assert.Len(t, loadedHistory.items, 1)
 	})
 
 	// Test case when file creation fails
@@ -455,13 +455,13 @@ func TestSave(t *testing.T) {
 		history, err := NewDownloadHistory("/non-existent-dir/history.json")
 		require.NoError(t, err)
 
-		history.Items = map[string]DownloadItem{
+		history.SetItems(map[string]DownloadItem{
 			"/path/to/file.odoc": {
 				FileID:       "882614125167948399",
 				Hash:         "1234567890abcdef",
 				DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
 			},
-		}
+		})
 		err = history.Save()
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "file write error")
@@ -482,13 +482,13 @@ func TestSave(t *testing.T) {
 		history, err := NewDownloadHistory(jsonPath)
 		require.NoError(t, err)
 
-		history.Items = map[string]DownloadItem{
+		history.SetItems(map[string]DownloadItem{
 			"/path/to/file.odoc": {
 				FileID:       "882614125167948399",
 				Hash:         "1234567890abcdef",
 				DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
 			},
-		}
+		})
 		err = history.Save()
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "file write error")
