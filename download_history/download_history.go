@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
@@ -44,12 +43,6 @@ type DownloadHistory struct {
 	SkippedCount  counter
 	IgnoredCount  counter
 	ErrorCount    counter
-}
-
-// MakeHistoryKey generates a key for download history from a display path.
-// This replicates the logic previously used in synology_drive_exporter.MakeHistoryKey.
-func MakeHistoryKey(displayPath string) string {
-	return strings.TrimPrefix(filepath.Clean(displayPath), "/")
 }
 
 // ErrHistoryItemNotFound is returned when the specified item does not exist in the history.

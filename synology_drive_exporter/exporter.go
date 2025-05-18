@@ -177,7 +177,7 @@ func (e *Exporter) processFile(item ExportItem, history *download_history.Downlo
 		return
 	}
 
-	localPath := download_history.MakeHistoryKey(item.DisplayPath)
+	localPath := MakeLocalFileName(item.DisplayPath)
 	if prev, downloaded := history.GetItem(localPath); downloaded && prev.Hash == item.Hash {
 		fmt.Printf("[DEBUG] hash skip: localPath=%s, prev.Hash=%s, item.Hash=%s, prev.DownloadStatus=%s\n", localPath, prev.Hash, item.Hash, prev.DownloadStatus)
 
@@ -227,11 +227,9 @@ type ExportItem struct {
 	Hash        synd.FileHash
 }
 
-// MakeHistoryKey generates a key for download history from a display path.
-// This replicates the logic previously used in DownloadHistory.GetItemByDisplayPath.
-func MakeHistoryKey(displayPath string) string {
-	// Generate key by cleaning and trimming the displayPath only (do not convert extension)
-	return strings.TrimPrefix(filepath.Clean(displayPath), "/")
+// MakeLocalFileName generates a local file name from a display path.
+func MakeLocalFileName(displayPath string) string {
+	return synd.GetExportFileName(strings.TrimPrefix(filepath.Clean(displayPath), "/"))
 }
 
 func toExportItem(item *synd.ResponseItem) ExportItem {
