@@ -46,29 +46,11 @@ type DownloadHistory struct {
 	ErrorCount    counter
 }
 
-// LoadFromReader loads DownloadHistory from the provided io.Reader.
-// This method is intended for use in tests only and MUST NOT be used in production code.
-func (d *DownloadHistory) LoadFromReader(r io.Reader) error {
-	return d.loadFromReader(r)
-}
-
-// SaveToWriter writes DownloadHistory to the provided io.Writer.
-// This method is intended for use in tests only and MUST NOT be used in production code.
-func (d *DownloadHistory) SaveToWriter(w io.Writer) error {
-	return d.saveToWriter(w)
-}
-
 // ErrHistoryItemNotFound is returned when the specified item does not exist in the history.
 var ErrHistoryItemNotFound = fmt.Errorf("download history item not found")
 
 // ErrHistoryInvalidStatus is returned when the item's status does not match the expected state.
 var ErrHistoryInvalidStatus = fmt.Errorf("download history item status is invalid")
-
-// SetItem sets or updates a DownloadItem for the given location in the download history.
-// This method should be used instead of direct access to the Items field from outside this struct.
-func (d *DownloadHistory) SetItem(location string, item DownloadItem) {
-	d.Items[location] = item
-}
 
 // MarkSkipped sets the status of an existing item to 'skipped' if its current status is 'loaded'.
 // Returns an error if the item does not exist or its status is not 'loaded'.

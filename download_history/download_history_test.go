@@ -30,7 +30,7 @@ func TestDownloadHistoryBasic(t *testing.T) {
 		DownloadStatus: StatusLoaded,
 	}
 
-	history.SetItem("file1", item)
+	history.Items["file1"] = item
 	got, ok := history.Items["file1"]
 	if !ok || got.FileID != item.FileID {
 		t.Errorf("SetItem or Items failed: got %+v", got)
@@ -163,7 +163,7 @@ func TestLoadFromReader(t *testing.T) {
 		]
 	}`
 	// Use test-only API for loading from custom reader
-	err = history.LoadFromReader(strings.NewReader(json))
+	err = history.loadFromReader(strings.NewReader(json))
 	require.NoError(t, err)
 
 	item := history.Items["/path/to/file.odoc"]
@@ -190,7 +190,7 @@ func TestLoadFromReader(t *testing.T) {
 			]
 		` // Missing closing bracket
 		// Use test-only API for loading from custom reader
-		err = history.LoadFromReader(strings.NewReader(invalidJSON))
+		err = history.loadFromReader(strings.NewReader(invalidJSON))
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "unexpected end of JSON input")
 	})
@@ -206,7 +206,7 @@ func TestLoadFromReader(t *testing.T) {
 			"items": []
 		}`
 		// Use test-only API for loading from custom reader
-		err = history.LoadFromReader(strings.NewReader(invalidVersionJSON))
+		err = history.loadFromReader(strings.NewReader(invalidVersionJSON))
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "unsupported version: 1")
 	})
@@ -222,7 +222,7 @@ func TestLoadFromReader(t *testing.T) {
 			"items": []
 		}`
 		// Use test-only API for loading from custom reader
-		err = history.LoadFromReader(strings.NewReader(invalidMagicJSON))
+		err = history.loadFromReader(strings.NewReader(invalidMagicJSON))
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "invalid magic: WRONG_MAGIC_STRING")
 	})
@@ -245,7 +245,7 @@ func TestLoadFromReader(t *testing.T) {
 			]
 		}`
 		// Use test-only API for loading from custom reader
-		err = history.LoadFromReader(strings.NewReader(invalidDateJSON))
+		err = history.loadFromReader(strings.NewReader(invalidDateJSON))
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "failed to parse download time")
 	})
@@ -274,7 +274,7 @@ func TestLoadFromReader(t *testing.T) {
 			]
 		}`
 		// Use test-only API for loading from custom reader
-		err = history.LoadFromReader(strings.NewReader(duplicateLocationJSON))
+		err = history.loadFromReader(strings.NewReader(duplicateLocationJSON))
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "duplicate location")
 	})
@@ -359,7 +359,7 @@ func TestSaveToWriter(t *testing.T) {
 	t.Run("Successful write", func(t *testing.T) {
 		var buf strings.Builder
 		// Use test-only API for saving to custom writer
-		err = history.SaveToWriter(&buf)
+		err = history.saveToWriter(&buf)
 		assert.Nil(t, err)
 
 		// Verify the output contains expected data
@@ -380,7 +380,7 @@ func TestSaveToWriter(t *testing.T) {
 		require.NoError(t, err)
 
 		// Use test-only API for loading from custom reader
-		err = loadedHistory.LoadFromReader(strings.NewReader(output))
+		err = loadedHistory.loadFromReader(strings.NewReader(output))
 		assert.Nil(t, err)
 		assert.Len(t, loadedHistory.Items, 2)
 
@@ -401,7 +401,7 @@ func TestSaveToWriter(t *testing.T) {
 		// Create a mock writer that returns an error on Write
 		errorWriter := &mockErrorWriter{}
 		// Use test-only API for saving to custom writer
-		err = history.SaveToWriter(errorWriter)
+		err = history.saveToWriter(errorWriter)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "file write error")
 	})
