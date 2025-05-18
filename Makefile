@@ -14,15 +14,22 @@ build:
 pre-commit:
 	pre-commit run --all-files
 
-# Run tests, specifically library unit tests
-test:
+# Run unit tests (excludes integration tests)
+test: test-unit
+
+# Run unit tests (excludes integration tests)
+test-unit:
 	$(GO_TEST) ./cmd/export/...
 	$(GO_TEST) ./download_history/...
 	$(GO_TEST) ./synology_drive_api/...
 	$(GO_TEST) ./synology_drive_exporter/...
 
-test-full: test
-	USE_REAL_SYNOLOGY=1 $(GO_TEST) -count=1 ./synology_drive_api/...
+# Run integration tests (requires Synology NAS environment variables)
+test-integration:
+	$(GO_TEST) -tags=integration -count=1 ./synology_drive_api/...
+
+# Run all tests (unit + integration)
+test-full: test-unit test-integration
 
 # Clean up automatically generated files
 clean:
