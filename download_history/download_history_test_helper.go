@@ -5,7 +5,16 @@ package download_history
 //
 // Note: This function is included in all builds unless this file is restricted to test builds via a build tag.
 func NewDownloadHistoryForTest(items map[string]DownloadItem) *DownloadHistory {
-	dh := &DownloadHistory{}
-	dh.items = items
+	if items == nil {
+		items = make(map[string]DownloadItem)
+	}
+	dh := &DownloadHistory{
+		items:         items,
+		path:          "test-history.json",
+		DownloadCount: counter{},
+		SkippedCount:  counter{},
+		IgnoredCount:  counter{},
+		ErrorCount:    counter{},
+	}
 	return dh
 }

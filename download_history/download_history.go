@@ -47,11 +47,6 @@ type DownloadHistory struct {
 	ErrorCount    counter
 }
 
-// SetItems replaces the internal items map (for testing only).
-func (d *DownloadHistory) SetItems(m map[string]DownloadItem) {
-	d.items = m
-}
-
 // MakeHistoryKey generates a key for download history from a display path.
 // This replicates the logic previously used in synology_drive_exporter.MakeHistoryKey.
 func MakeHistoryKey(displayPath string) string {
