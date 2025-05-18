@@ -576,11 +576,10 @@ func TestExporter_Counts(t *testing.T) {
 			},
 		}
 		mockFS := NewMockFileSystem()
-		history, err := download_history.NewDownloadHistory("test_history.json")
-		require.NoError(t, err)
-		history.Items = map[string]download_history.DownloadItem{
+		// Use test helper to create DownloadHistory with initial items for testing
+		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
 			cleanPath: {FileID: fileID, Hash: fileHash},
-		}
+		})
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      fileID,
@@ -697,11 +696,10 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		}
 		initialTime := time.Date(2024, 5, 18, 8, 0, 0, 0, time.UTC)
 		path := MakeHistoryKey(item.DisplayPath)
-		history, err := download_history.NewDownloadHistory("test_history.json")
-		require.NoError(t, err)
-		history.Items = map[string]download_history.DownloadItem{
+		// Use test helper to create DownloadHistory with initial items for testing
+		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
 			path: {FileID: "file1", Hash: "hash1", DownloadStatus: download_history.StatusLoaded, DownloadTime: initialTime},
-		}
+		})
 		session := &MockSynologySession{
 			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
 				return &synd.ExportResponse{Content: []byte("file content")}, nil
@@ -710,7 +708,6 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		mockFS := NewMockFileSystem()
 		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processFile(item, history)
-		t.Logf("[DEBUG] after MarkSkipped: history.Items[%q].DownloadStatus = %v", path, history.Items[path].DownloadStatus)
 
 		// Inline getHistoryItemByDisplayPath logic (was: dlItem := getHistoryItemByDisplayPath(...))
 		dlItem, exists := history.GetItem(download_history.MakeHistoryKey(item.DisplayPath))
@@ -729,13 +726,12 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		item1 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file1", DisplayPath: "/doc/test1.odoc", Hash: "hash1"}     // hash unchanged
 		item2 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file2", DisplayPath: "/doc/test2.odoc", Hash: "hash2-new"} // hash changed
 		item3 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file3", DisplayPath: "/doc/test3.odoc", Hash: "hash3"}     // only in history
-		history, err := download_history.NewDownloadHistory("test_history.json")
-		require.NoError(t, err)
-		history.Items = map[string]download_history.DownloadItem{
+		// Use test helper to create DownloadHistory with initial items for testing
+		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
 			MakeHistoryKey(item1.DisplayPath): {FileID: "file1", Hash: "hash1", DownloadStatus: download_history.StatusLoaded},
 			MakeHistoryKey(item2.DisplayPath): {FileID: "file2", Hash: "hash2-old", DownloadStatus: download_history.StatusLoaded},
 			MakeHistoryKey(item3.DisplayPath): {FileID: "file3", Hash: "hash3", DownloadStatus: download_history.StatusLoaded},
-		}
+		})
 		session := &MockSynologySession{
 			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
 				return &synd.ExportResponse{Content: []byte("file content")}, nil
@@ -823,9 +819,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 				writeCalled = true
 				return nil
 			}
-			history, err := download_history.NewDownloadHistory("test_history.json")
-			require.NoError(t, err)
-			history.Items = tc.history
+			history := download_history.NewDownloadHistoryForTest(tc.history)
 			item := ExportItem{
 				Type:        synd.ObjectTypeFile,
 				FileID:      fileID,

@@ -37,7 +37,7 @@ type ExportStats struct {
 
 // DownloadHistory manages the download state and statistics.
 type DownloadHistory struct {
-	Items map[string]DownloadItem
+	items map[string]DownloadItem // items holds the download history, private for encapsulation
 	path  string
 
 	DownloadCount counter
@@ -61,7 +61,7 @@ var ErrHistoryInvalidStatus = fmt.Errorf("download history item status is invali
 // MarkSkipped sets the status of an existing item to 'skipped'.
 // Returns an error if the item does not exist or if the item's status is not 'loaded'.
 func (d *DownloadHistory) MarkSkipped(location string) error {
-	item, ok := d.Items[location]
+	item, ok := d.items[location]
 	if !ok {
 		return ErrHistoryItemNotFound
 	}
@@ -69,24 +69,24 @@ func (d *DownloadHistory) MarkSkipped(location string) error {
 		return ErrHistoryInvalidStatus
 	}
 	item.DownloadStatus = StatusSkipped
-	d.Items[location] = item
+	d.items[location] = item
 	return nil
 }
 
 // SetDownloaded adds a new item with status 'downloaded' if it does not exist, or updates an existing item
 // to 'downloaded' if its current status is 'loaded'. Returns an error if the item exists and its status is not 'loaded'.
 func (d *DownloadHistory) SetDownloaded(location string, item DownloadItem) error {
-	existing, ok := d.Items[location]
+	existing, ok := d.items[location]
 	if ok {
 		if existing.DownloadStatus != StatusLoaded {
 			return ErrHistoryInvalidStatus
 		}
 		item.DownloadStatus = StatusDownloaded
-		d.Items[location] = item
+		d.items[location] = item
 		return nil
 	}
 	item.DownloadStatus = StatusDownloaded
-	d.Items[location] = item
+	d.items[location] = item
 	return nil
 }
 
@@ -103,7 +103,7 @@ func (d *DownloadHistory) GetStats() ExportStats {
 // GetItem looks up a DownloadItem by its key.
 // It returns the item and true if found, or false if not found.
 func (d *DownloadHistory) GetItem(key string) (DownloadItem, bool) {
-	item, exists := d.Items[key]
+	item, exists := d.items[key]
 	return item, exists
 }
 
@@ -161,7 +161,7 @@ func NewDownloadHistory(path string) (*DownloadHistory, error) {
 	}
 
 	history := &DownloadHistory{
-		Items: make(map[string]DownloadItem),
+		items: make(map[string]DownloadItem),
 		path:  path,
 	}
 	return history, nil
@@ -201,11 +201,11 @@ func (d *DownloadHistory) loadFromReader(r io.Reader) error {
 			return fmt.Errorf("failed to parse download time: %s", err.Error())
 		}
 		// Prevent duplicate locations in the history map.
-		if _, exists := d.Items[item.Location]; exists {
+		if _, exists := d.items[item.Location]; exists {
 			return fmt.Errorf("duplicate location: %s", item.Location)
 		}
 		// Set DownloadStatus to StatusLoaded on load to reflect state from file.
-		d.Items[item.Location] = DownloadItem{
+		d.items[item.Location] = DownloadItem{
 			FileID:         item.FileID,
 			Hash:           item.Hash,
 			DownloadTime:   downloadTime,
@@ -241,8 +241,8 @@ func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 		Created: time.Now().Format(time.RFC3339),
 	}
 
-	items := make([]jsonDownloadItem, 0, len(d.Items))
-	for location, item := range d.Items {
+	items := make([]jsonDownloadItem, 0, len(d.items))
+	for location, item := range d.items {
 		items = append(items, jsonDownloadItem{
 			Location:     location,
 			FileID:       item.FileID,
