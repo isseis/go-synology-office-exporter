@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"maps"
+
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
@@ -525,9 +527,7 @@ func newTestDownloadHistory(items map[string]DownloadItem) *DownloadHistory {
 	history := &DownloadHistory{
 		Items: make(map[string]DownloadItem),
 	}
-	for k, v := range items {
-		history.Items[k] = v
-	}
+	maps.Copy(history.Items, items)
 	return history
 }
 

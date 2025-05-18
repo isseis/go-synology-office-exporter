@@ -29,19 +29,19 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 		DownloadStatus: StatusDownloaded,
 	}
 
-	t.Run("MarkSkippedIfLoaded - success", func(t *testing.T) {
+	t.Run("MarkSkipped - success", func(t *testing.T) {
 		h, _ := NewDownloadHistory("dummy.json")
 		h.Items["file1"] = itemLoaded
 		err := h.MarkSkipped("file1")
 		assert.NoError(t, err)
 		assert.Equal(t, StatusSkipped, h.Items["file1"].DownloadStatus)
 	})
-	t.Run("MarkSkippedIfLoaded - not found", func(t *testing.T) {
+	t.Run("MarkSkipped - not found", func(t *testing.T) {
 		h, _ := NewDownloadHistory("dummy.json")
 		err := h.MarkSkipped("notfound")
 		assert.ErrorIs(t, err, ErrHistoryItemNotFound)
 	})
-	t.Run("MarkSkippedIfLoaded - wrong status", func(t *testing.T) {
+	t.Run("MarkSkipped - wrong status", func(t *testing.T) {
 		h, _ := NewDownloadHistory("dummy.json")
 		h.Items["file1"] = itemOther
 		err := h.MarkSkipped("file1")
