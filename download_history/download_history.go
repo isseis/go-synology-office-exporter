@@ -58,12 +58,15 @@ var ErrHistoryItemNotFound = fmt.Errorf("download history item not found")
 // ErrHistoryInvalidStatus is returned when the item's status does not match the expected state.
 var ErrHistoryInvalidStatus = fmt.Errorf("download history item status is invalid")
 
-// MarkSkipped sets the status of an existing item to 'skipped', regardless of its current status.
-// Returns an error if the item does not exist.
+// MarkSkipped sets the status of an existing item to 'skipped'.
+// Returns an error if the item does not exist or if the item's status is not 'loaded'.
 func (d *DownloadHistory) MarkSkipped(location string) error {
 	item, ok := d.Items[location]
 	if !ok {
 		return ErrHistoryItemNotFound
+	}
+	if item.DownloadStatus != StatusLoaded {
+		return ErrHistoryInvalidStatus
 	}
 	item.DownloadStatus = StatusSkipped
 	d.Items[location] = item
