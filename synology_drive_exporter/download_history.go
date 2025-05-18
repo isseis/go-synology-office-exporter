@@ -27,12 +27,6 @@ func (c *counter) Get() int {
 	return c.count
 }
 
-// TestMakeKey generates a key for the given display path for testing purposes.
-// This is a test helper function and should only be used in tests.
-func TestMakeKey(displayPath string) string {
-	return strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(displayPath)), "/")
-}
-
 // ExportStats holds the statistics of the export operation.
 type ExportStats struct {
 	Downloaded int // Number of successfully downloaded files

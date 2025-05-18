@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -521,12 +522,19 @@ func validateExportedFile(t *testing.T, item *synd.ResponseItem, mockFS *MockFil
 
 // newTestDownloadHistory creates a DownloadHistory instance for testing.
 func newTestDownloadHistory(items map[string]DownloadItem) *DownloadHistory {
-	if items == nil {
-		items = make(map[string]DownloadItem)
+	history := &DownloadHistory{
+		Items: make(map[string]DownloadItem),
 	}
-	return &DownloadHistory{
-		Items: items,
+	for k, v := range items {
+		history.Items[k] = v
 	}
+	return history
+}
+
+// makeTestKey generates a key for the given display path for testing purposes.
+// This is a test helper function and should only be used in tests.
+func makeTestKey(displayPath string) string {
+	return strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(displayPath)), "/")
 }
 
 // TestExporter_Counts verifies that DownloadHistory's counters are incremented correctly.
@@ -538,7 +546,7 @@ func TestExporter_Counts(t *testing.T) {
 	ignoredFileID := synd.FileID("file3")
 	ignoredPath := "/doc/ignored.txt" // not exportable
 	displayPath := "/doc/test1.odoc"
-	cleanPath := TestMakeKey(displayPath)
+	cleanPath := makeTestKey(displayPath)
 
 	t.Run("DownloadCount increments on successful export", func(t *testing.T) {
 		session := &MockSynologySession{
@@ -686,7 +694,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 			Hash:        "hash1",
 		}
 		initialTime := time.Date(2024, 5, 18, 8, 0, 0, 0, time.UTC)
-		path := TestMakeKey(item.DisplayPath)
+		path := makeTestKey(item.DisplayPath)
 		history := newTestDownloadHistory(map[string]DownloadItem{
 			path: {FileID: "file1", Hash: "hash1", DownloadStatus: StatusLoaded, DownloadTime: initialTime},
 		})
@@ -717,9 +725,9 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		item2 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file2", DisplayPath: "/doc/test2.odoc", Hash: "hash2-new"} // hash changed
 		item3 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file3", DisplayPath: "/doc/test3.odoc", Hash: "hash3"}     // only in history
 		history := newTestDownloadHistory(map[string]DownloadItem{
-			TestMakeKey(item1.DisplayPath): {FileID: "file1", Hash: "hash1", DownloadStatus: StatusLoaded},
-			TestMakeKey(item2.DisplayPath): {FileID: "file2", Hash: "hash2-old", DownloadStatus: StatusLoaded},
-			TestMakeKey(item3.DisplayPath): {FileID: "file3", Hash: "hash3", DownloadStatus: StatusLoaded},
+			makeTestKey(item1.DisplayPath): {FileID: "file1", Hash: "hash1", DownloadStatus: StatusLoaded},
+			makeTestKey(item2.DisplayPath): {FileID: "file2", Hash: "hash2-old", DownloadStatus: StatusLoaded},
+			makeTestKey(item3.DisplayPath): {FileID: "file3", Hash: "hash3", DownloadStatus: StatusLoaded},
 		})
 		session := &MockSynologySession{
 			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
@@ -764,7 +772,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 	fileHashOld := synd.FileHash("hash_old")
 	fileHashNew := synd.FileHash("hash_new")
 	displayPath := "/doc/test1.odoc"
-	cleanPath := TestMakeKey(displayPath)
+	cleanPath := makeTestKey(displayPath)
 	cases := []struct {
 		name        string
 		history     map[string]DownloadItem
