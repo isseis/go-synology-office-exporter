@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
@@ -24,6 +25,12 @@ func (c *counter) Increment() {
 
 func (c *counter) Get() int {
 	return c.count
+}
+
+// TestMakeKey generates a key for the given display path for testing purposes.
+// This is a test helper function and should only be used in tests.
+func TestMakeKey(displayPath string) string {
+	return strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(displayPath)), "/")
 }
 
 // ExportStats holds the statistics of the export operation.
@@ -97,6 +104,14 @@ func (d *DownloadHistory) GetStats() ExportStats {
 		Ignored:    d.IgnoredCount.Get(),
 		Errors:     d.ErrorCount.Get(),
 	}
+}
+
+// GetItemByDisplayPath looks up a DownloadItem by its display path.
+// It returns the item and true if found, or false if not found.
+func (d *DownloadHistory) GetItemByDisplayPath(displayPath string) (DownloadItem, bool) {
+	key := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(displayPath)), "/")
+	item, exists := d.Items[key]
+	return item, exists
 }
 
 type jsonHeader struct {

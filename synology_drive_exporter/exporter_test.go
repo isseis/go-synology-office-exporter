@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -538,8 +537,8 @@ func TestExporter_Counts(t *testing.T) {
 	fileHash2 := synd.FileHash("hash2")
 	ignoredFileID := synd.FileID("file3")
 	ignoredPath := "/doc/ignored.txt" // not exportable
-	exportName := synd.GetExportFileName("/doc/test1.odoc")
-	cleanPath := strings.TrimPrefix(filepath.Clean(exportName), "/")
+	displayPath := "/doc/test1.odoc"
+	cleanPath := TestMakeKey(displayPath)
 
 	t.Run("DownloadCount increments on successful export", func(t *testing.T) {
 		session := &MockSynologySession{
@@ -670,10 +669,12 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		}
 		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processFile(item, history)
-		path := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(item.DisplayPath)), "/")
-		status := history.Items[path].DownloadStatus
-		if status != StatusDownloaded {
-			t.Errorf("expected StatusDownloaded, got %v", status)
+		dlItem, exists := history.GetItemByDisplayPath(item.DisplayPath)
+		if !exists {
+			t.Fatal("expected item to exist in history")
+		}
+		if dlItem.DownloadStatus != StatusDownloaded {
+			t.Errorf("expected StatusDownloaded, got %v", dlItem.DownloadStatus)
 		}
 	})
 
@@ -684,8 +685,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 			DisplayPath: "/doc/test1.odoc",
 			Hash:        "hash1",
 		}
-		path := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(item.DisplayPath)), "/")
 		initialTime := time.Date(2024, 5, 18, 8, 0, 0, 0, time.UTC)
+		path := TestMakeKey(item.DisplayPath)
 		history := newTestDownloadHistory(map[string]DownloadItem{
 			path: {FileID: "file1", Hash: "hash1", DownloadStatus: StatusLoaded, DownloadTime: initialTime},
 		})
@@ -697,12 +698,15 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		mockFS := NewMockFileSystem()
 		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processFile(item, history)
-		status := history.Items[path].DownloadStatus
-		if status != StatusSkipped {
-			t.Errorf("expected StatusSkipped, got %v", status)
+		dlItem, exists := history.GetItemByDisplayPath(item.DisplayPath)
+		if !exists {
+			t.Fatal("expected item to exist in history")
 		}
-		if !history.Items[path].DownloadTime.Equal(initialTime) {
-			t.Errorf("expected DownloadTime to remain unchanged, got %v want %v", history.Items[path].DownloadTime, initialTime)
+		if dlItem.DownloadStatus != StatusSkipped {
+			t.Errorf("expected StatusSkipped, got %v", dlItem.DownloadStatus)
+		}
+		if !dlItem.DownloadTime.Equal(initialTime) {
+			t.Errorf("expected DownloadTime to remain unchanged, got %v want %v", dlItem.DownloadTime, initialTime)
 		}
 	})
 
@@ -712,13 +716,10 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		item1 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file1", DisplayPath: "/doc/test1.odoc", Hash: "hash1"}     // hash unchanged
 		item2 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file2", DisplayPath: "/doc/test2.odoc", Hash: "hash2-new"} // hash changed
 		item3 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file3", DisplayPath: "/doc/test3.odoc", Hash: "hash3"}     // only in history
-		path1 := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(item1.DisplayPath)), "/")
-		path2 := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(item2.DisplayPath)), "/")
-		path3 := strings.TrimPrefix(filepath.Clean(synd.GetExportFileName(item3.DisplayPath)), "/")
 		history := newTestDownloadHistory(map[string]DownloadItem{
-			path1: {FileID: "file1", Hash: "hash1", DownloadStatus: StatusLoaded},
-			path2: {FileID: "file2", Hash: "hash2-old", DownloadStatus: StatusLoaded},
-			path3: {FileID: "file3", Hash: "hash3", DownloadStatus: StatusLoaded},
+			TestMakeKey(item1.DisplayPath): {FileID: "file1", Hash: "hash1", DownloadStatus: StatusLoaded},
+			TestMakeKey(item2.DisplayPath): {FileID: "file2", Hash: "hash2-old", DownloadStatus: StatusLoaded},
+			TestMakeKey(item3.DisplayPath): {FileID: "file3", Hash: "hash3", DownloadStatus: StatusLoaded},
 		})
 		session := &MockSynologySession{
 			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
@@ -730,14 +731,32 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		exporter.processFile(item1, history) // should become skipped
 		exporter.processFile(item2, history) // should become downloaded
 		// item3 not processed, remains loaded
-		if history.Items[path1].DownloadStatus != StatusSkipped {
-			t.Errorf("expected StatusSkipped for item1, got %v", history.Items[path1].DownloadStatus)
+
+		// Check item1 status (should be skipped)
+		item1Status, exists := history.GetItemByDisplayPath(item1.DisplayPath)
+		if !exists {
+			t.Fatal("expected item1 to exist in history")
 		}
-		if history.Items[path2].DownloadStatus != StatusDownloaded {
-			t.Errorf("expected StatusDownloaded for item2, got %v", history.Items[path2].DownloadStatus)
+		if item1Status.DownloadStatus != StatusSkipped {
+			t.Errorf("expected StatusSkipped for item1, got %v", item1Status.DownloadStatus)
 		}
-		if history.Items[path3].DownloadStatus != StatusLoaded {
-			t.Errorf("expected StatusLoaded for item3, got %v", history.Items[path3].DownloadStatus)
+
+		// Check item2 status (should be downloaded)
+		item2Status, exists := history.GetItemByDisplayPath(item2.DisplayPath)
+		if !exists {
+			t.Fatal("expected item2 to exist in history")
+		}
+		if item2Status.DownloadStatus != StatusDownloaded {
+			t.Errorf("expected StatusDownloaded for item2, got %v", item2Status.DownloadStatus)
+		}
+
+		// Check item3 status (should remain loaded)
+		item3Status, exists := history.GetItemByDisplayPath(item3.DisplayPath)
+		if !exists {
+			t.Fatal("expected item3 to exist in history")
+		}
+		if item3Status.DownloadStatus != StatusLoaded {
+			t.Errorf("expected StatusLoaded for item3, got %v", item3Status.DownloadStatus)
 		}
 	})
 
@@ -745,8 +764,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 	fileHashOld := synd.FileHash("hash_old")
 	fileHashNew := synd.FileHash("hash_new")
 	displayPath := "/doc/test1.odoc"
-	exportName := synd.GetExportFileName(displayPath)
-	cleanPath := strings.TrimPrefix(filepath.Clean(exportName), "/")
+	cleanPath := TestMakeKey(displayPath)
 	cases := []struct {
 		name        string
 		history     map[string]DownloadItem
@@ -798,6 +816,14 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 			exporter.processItem(item, history)
 			if writeCalled != tc.expectWrite {
 				t.Errorf("expected write: %v, got: %v", tc.expectWrite, writeCalled)
+			}
+
+			// Verify the item exists in history if we expected a write
+			if tc.expectWrite {
+				_, exists := history.GetItemByDisplayPath(displayPath)
+				if !exists {
+					t.Error("expected item to exist in history after processing")
+				}
 			}
 		})
 	}
