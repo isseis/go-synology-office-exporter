@@ -22,8 +22,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// ResetMockLogin resets the mock login state to 'not logged in'.
-// Call this at the start of each test to avoid state leakage between tests.
+// ResetMockLogin is a no-op in integration tests.
+// It is included for compatibility with other test contexts where state-resetting might be required.
 func ResetMockLogin() {}
 
 // getNasUrl returns the Synology NAS URL from environment variables
