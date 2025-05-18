@@ -82,6 +82,8 @@ func main() {
 	urlFlag := flag.String("url", "", "Synology NAS URL")
 	downloadDirFlag := flag.String("output", "", "Directory to save downloaded files")
 	sourcesFlag := flag.String("sources", "mydrive,teamfolder,shared", "Comma-separated list of sources to export (mydrive,teamfolder,shared)")
+	// dry_run: If true, performs a dry run (no files are downloaded or written, only statistics are shown)
+	dryRunFlag := flag.Bool("dry_run", false, "If set, perform a dry run (no file downloads, only show statistics)")
 	flag.Parse()
 
 	// Fallback to environment variables if flags are not provided
@@ -133,7 +135,7 @@ func main() {
 	}
 
 	fmt.Printf("Synology Office Exporter v%s\n", Version)
-	exporter, err := syndexp.NewExporter(user, pass, url, downloadDir)
+	exporter, err := syndexp.NewExporter(user, pass, url, downloadDir, *dryRunFlag)
 	if err != nil {
 		log.Fatalf("Failed to create exporter: %v", err)
 	}
