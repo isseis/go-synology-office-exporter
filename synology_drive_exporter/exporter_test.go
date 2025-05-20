@@ -50,6 +50,7 @@ type MockSynologySession struct {
 	ExportFunc       func(fileID synd.FileID) (*synd.ExportResponse, error)
 	TeamFolderFunc   func(offset, limit int64) (*synd.TeamFolderResponse, error)
 	SharedWithMeFunc func(offset, limit int64) (*synd.SharedWithMeResponse, error)
+	MaxPageSize      int64
 }
 
 func (m *MockSynologySession) List(rootDirID synd.FileID, offset, limit int64) (*synd.ListResponse, error) {
@@ -78,6 +79,14 @@ func (m *MockSynologySession) SharedWithMe(offset, limit int64) (*synd.SharedWit
 		return m.SharedWithMeFunc(offset, limit)
 	}
 	return nil, errors.New("SharedWithMeFunc not set")
+}
+
+// GetMaxPageSize returns the maximum number of items that can be requested per page.
+func (m *MockSynologySession) GetMaxPageSize() int64 {
+	if m.MaxPageSize <= 0 {
+		return synd.DefaultMaxPageSize
+	}
+	return m.MaxPageSize
 }
 
 func TestExporterExportMyDrive(t *testing.T) {

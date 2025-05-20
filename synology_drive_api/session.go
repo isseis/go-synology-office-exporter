@@ -30,6 +30,11 @@ func WithMaxPageSize(maxPageSize int64) SessionOption {
 	}
 }
 
+// GetMaxPageSize returns the maximum number of items that can be requested per page.
+func (s *SynologySession) GetMaxPageSize() int64 {
+	return s.maxPageSize
+}
+
 // SynologySession represents a session with a Synology NAS
 type SynologySession struct {
 	username    string      // Username for login on Synology NAS
