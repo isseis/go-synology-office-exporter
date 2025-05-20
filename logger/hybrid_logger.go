@@ -64,7 +64,7 @@ func slogLevel(lvl Level) slog.Level {
 }
 
 func (h *hybridLogger) log(level slog.Level, msg string, args ...interface{}) {
-	if slogLevel(levelFromSlog(level)) < slogLevel(h.minLevel) {
+	if levelFromSlog(level) < h.minLevel {
 		return
 	}
 	rec := slog.NewRecord(time.Now(), level, msg, 0)
