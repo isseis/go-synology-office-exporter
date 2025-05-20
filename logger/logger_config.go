@@ -2,7 +2,6 @@ package logger
 
 import (
 	"flag"
-	"io"
 )
 
 // Command line flags
@@ -34,11 +33,10 @@ const (
 
 // Config holds configuration for the logger.
 type Config struct {
-	Level       Level     // Log level
-	WebhookURL  string    // Webhook URL for sending logs
-	AppName     string    // Application name
-	Environment string    // Environment (development, staging, production)
-	Output      io.Writer // Output destination for stdout (for testing)
+	Level       Level  // Log level
+	WebhookURL  string // Webhook URL for sending logs
+	AppName     string // Application name
+	Environment string // Environment (development, staging, production)
 }
 
 // ParseLevel parses a string into a Level (defaults to LevelInfo).

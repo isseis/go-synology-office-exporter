@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"sync"
 	"time"
 )
@@ -20,7 +19,6 @@ type Logger interface {
 
 // hybridLogger outputs to stdout in real-time and buffers logs for webhook.
 type hybridLogger struct {
-	stdoutHandler *slog.JSONHandler
 	webhookBuffer []slog.Record
 	mu            sync.Mutex
 	minLevel      Level
@@ -31,16 +29,11 @@ type hybridLogger struct {
 
 // NewHybridLogger creates a new hybrid logger.
 func NewHybridLogger(cfg Config) Logger {
-	output := cfg.Output
-	if output == nil {
-		output = os.Stdout
-	}
 	return &hybridLogger{
-		stdoutHandler: slog.NewJSONHandler(output, &slog.HandlerOptions{Level: slogLevel(cfg.Level)}),
-		minLevel:      cfg.Level,
-		webhookURL:    cfg.WebhookURL,
-		appName:       cfg.AppName,
-		env:           cfg.Environment,
+		minLevel:   cfg.Level,
+		webhookURL: cfg.WebhookURL,
+		appName:    cfg.AppName,
+		env:        cfg.Environment,
 	}
 }
 
@@ -49,27 +42,13 @@ func sendToWebhook(webhookURL, appName, env string, logs []slog.Record) error {
 	return fmt.Errorf("sendToWebhook not implemented yet")
 }
 
-// slogLevel converts our Level to slog.Level
-func slogLevel(lvl Level) slog.Level {
-	switch lvl {
-	case LevelDebug:
-		return slog.LevelDebug
-	case LevelWarn:
-		return slog.LevelWarn
-	case LevelError:
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
-}
-
 func (h *hybridLogger) log(level slog.Level, msg string, args ...interface{}) {
 	if levelFromSlog(level) < h.minLevel {
 		return
 	}
 	rec := slog.NewRecord(time.Now(), level, msg, 0)
 	rec.Add(args...)
-	_ = h.stdoutHandler.Handle(context.Background(), rec)
+	_ = slog.Default().Handler().Handle(context.Background(), rec)
 	if h.webhookURL != "" {
 		h.mu.Lock()
 		defer h.mu.Unlock()

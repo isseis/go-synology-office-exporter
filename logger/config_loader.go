@@ -50,7 +50,6 @@ func LoadConfig() (*Config, error) {
 		WebhookURL:  webhookURL,
 		AppName:     appName,
 		Environment: envName,
-		Output:      nil, // Set by caller if needed
 	}, nil
 }
 
