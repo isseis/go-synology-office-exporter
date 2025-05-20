@@ -8,6 +8,23 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"time"
+)
+
+// sleeper is an interface for sleeping, which can be mocked in tests
+type sleeper interface {
+	Sleep(time.Duration)
+}
+
+type realSleeper struct{}
+
+func (s *realSleeper) Sleep(d time.Duration) {
+	time.Sleep(d)
+}
+
+const (
+	defaultMaxRetries = 3
+	defaultRetryDelay = 1 * time.Second
 )
 
 // RequestOption represents options for HTTP requests
@@ -150,7 +167,7 @@ func (s *SynologySession) httpGet(endpoint string, params map[string]string, opt
 	return s.httpRequest(http.MethodGet, endpoint, params, options)
 }
 
-// httpGetJSON sends a GET request to the Synology NAS API with JSON content type
+// httpGetJSONDirect sends a GET request to the Synology NAS API with JSON content type without retry
 // Parameters:
 //   - endpoint: The API endpoint path
 //   - params: Query parameters to include in the URL
@@ -158,11 +175,66 @@ func (s *SynologySession) httpGet(endpoint string, params map[string]string, opt
 // Returns:
 //   - *http.Response: The HTTP response from the API
 //   - error: An error if the request failed
-func (s *SynologySession) httpGetJSON(endpoint string, params map[string]string) (*http.Response, error) {
+func (s *SynologySession) httpGetJSONDirect(endpoint string, params map[string]string) (*http.Response, error) {
 	options := RequestOption{
 		ContentType: "application/json",
 	}
 	return s.httpRequest(http.MethodGet, endpoint, params, options)
+}
+
+// httpGetJSON sends a GET request to the Synology NAS API with JSON content type and retry logic
+// Parameters:
+//   - endpoint: The API endpoint path
+//   - params: Query parameters to include in the URL
+//
+// Returns:
+//   - *http.Response: The HTTP response from the API
+//   - error: An error if all retry attempts failed
+func (s *SynologySession) httpGetJSON(endpoint string, params map[string]string) (*http.Response, error) {
+	return s.httpGetJSONWithRetry(endpoint, params, defaultMaxRetries, defaultRetryDelay, &realSleeper{})
+}
+
+// isRetryableStatus returns true if the HTTP status code is considered retryable.
+// Retries on all 5xx errors and selected 4xx errors (Request Timeout, Too Many Requests, Unauthorized, Forbidden).
+func isRetryableStatus(code int) bool {
+	switch code {
+	case http.StatusRequestTimeout, // 408
+		http.StatusTooManyRequests, // 429
+		http.StatusUnauthorized,    // 401
+		http.StatusForbidden:       // 403
+		return true
+	}
+	return code >= 500 && code < 600
+}
+
+// httpGetJSONWithRetry sends a GET request with retry logic
+// Retries on network errors, HTTP 5xx (server) errors, and selected 4xx errors (see isRetryableStatus).
+// Only sleeps between retries, not before the first attempt.
+// Returns the first successful response, or error after all retries.
+func (s *SynologySession) httpGetJSONWithRetry(endpoint string, params map[string]string, maxRetries int, retryDelay time.Duration, sleeper sleeper) (*http.Response, error) {
+	var lastErr error
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// Only sleep between retries, not before the first attempt
+		if attempt > 0 {
+			sleeper.Sleep(retryDelay)
+		}
+
+		resp, err := s.httpGetJSONDirect(endpoint, params)
+		if err == nil {
+			// Retry on HTTP 5xx and selected 4xx errors
+			if isRetryableStatus(resp.StatusCode) {
+				lastErr = fmt.Errorf("retryable error: %d %s", resp.StatusCode, resp.Status)
+				resp.Body.Close()
+				continue
+			}
+			return resp, nil
+		}
+
+		lastErr = err
+	}
+
+	return nil, fmt.Errorf("after %d attempts, last error: %w", maxRetries+1, lastErr)
 }
 
 // apiRequest represents a Synology API request with its required parameters
