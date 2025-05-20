@@ -1,6 +1,7 @@
 package synology_drive_exporter
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -188,10 +189,10 @@ func (e *Exporter) exportItemsWithHistory(
 
 	// Acquire a file lock to prevent concurrent execution for the same history file
 	unlock, err := filelock.TryLock(historyPath)
-	if err == filelock.ErrLockHeld {
-		return ExportStats{}, fmt.Errorf("another process is already exporting to %s", historyFile)
-	}
 	if err != nil {
+		if errors.Is(err, filelock.ErrLockHeld) {
+			return ExportStats{}, fmt.Errorf("another process is already exporting to %s", historyFile)
+		}
 		return ExportStats{}, fmt.Errorf("failed to acquire lock for %s: %w", historyFile, err)
 	}
 	defer unlock()
