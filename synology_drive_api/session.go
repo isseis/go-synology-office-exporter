@@ -19,6 +19,17 @@ var RequestOptionJSON = RequestOption{
 	ContentType: "application/json",
 }
 
+// SessionOption configures a SynologySession.
+type SessionOption func(*SynologySession)
+
+// WithMaxPageSize sets the maximum number of items that can be requested in a single List call.
+// If not set, DefaultMaxPageSize will be used.
+func WithMaxPageSize(maxPageSize int) SessionOption {
+	return func(s *SynologySession) {
+		s.maxPageSize = maxPageSize
+	}
+}
+
 // SynologySession represents a session with a Synology NAS
 type SynologySession struct {
 	username    string      // Username for login on Synology NAS
@@ -27,31 +38,42 @@ type SynologySession struct {
 	scheme      string      // URL scheme (http or https)
 	sid         SessionID   // Session ID (set after login)
 	http_client http.Client // HTTP client with cookie support
+	maxPageSize int         // Maximum number of items per page for List operations
 }
 
 // NewSynologySession creates a new Synology API session with the provided credentials and base URL.
 // It returns a pointer to the session and an error if the base URL is invalid.
+//
 // Parameters:
 //   - username: Username for login on Synology NAS
 //   - password: Password for login on Synology NAS
 //   - base_url: Base URL for the Synology NAS (e.g., "https://nas.example.com:5001")
+//   - options: Optional configuration functions (e.g., WithMaxPageSize)
 //
 // Returns:
 //   - *SynologySession: A new session object
 //   - error: An error of type InvalidUrlError if the URL is invalid
-func NewSynologySession(username string, password string, base_url string) (*SynologySession, error) {
+func NewSynologySession(username string, password string, base_url string, options ...SessionOption) (*SynologySession, error) {
 	parsed, err := url.Parse(base_url)
 	if err != nil {
 		return nil, InvalidUrlError(err.Error())
 	}
 	jar, _ := cookiejar.New(nil)
-	return &SynologySession{
+	session := &SynologySession{
 		username:    username,
 		password:    password,
 		hostname:    parsed.Host,
 		scheme:      parsed.Scheme,
 		http_client: http.Client{Jar: jar},
-	}, nil
+		maxPageSize: DefaultMaxPageSize, // Set default max page size
+	}
+
+	// Apply all options
+	for _, option := range options {
+		option(session)
+	}
+
+	return session, nil
 }
 
 // sessionExpired checks if the session ID is empty, indicating an expired or non-existent session

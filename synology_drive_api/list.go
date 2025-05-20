@@ -2,6 +2,7 @@ package synology_drive_api
 
 import (
 	"fmt"
+	"strconv"
 )
 
 type jsonListResponseDataV2 struct {
@@ -19,10 +20,19 @@ type ListResponse struct {
 	raw   []byte
 }
 
-// List retrieves the contents of a folder on Synology Drive.
-//   - fileID: The identifier of the folder to list (e.g., MyDrive for the root folder).
-//   - Returns a ListResponse with all items and total count, or an error if the operation fails.
-func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
+// List retrieves a paginated list of items from a folder on Synology Drive.
+//   - fileID: The identifier of the folder to list (e.g., MyDrive for the root folder)
+//   - offset: The starting position (must be >= 0)
+//   - limit: Maximum number of items to return (must be > 0 and <= session's maxPageSize)
+//   - Returns a ListResponse with items and total count, or an error if the operation fails.
+func (s *SynologySession) List(fileID FileID, offset, limit int) (*ListResponse, error) {
+	if offset < 0 {
+		return nil, fmt.Errorf("offset must be >= 0, got %d", offset)
+	}
+	if limit <= 0 || limit > s.maxPageSize {
+		return nil, fmt.Errorf("limit must be between 1 and %d, got %d", s.maxPageSize, limit)
+	}
+
 	req := apiRequest{
 		api:     APINameSynologyDriveFiles,
 		method:  "list",
@@ -31,8 +41,8 @@ func (s *SynologySession) List(fileID FileID) (*ListResponse, error) {
 			"filter":         "{}",
 			"sort_direction": "asc",
 			"sort_by":        "owner",
-			"offset":         "0",
-			"limit":          "1000",
+			"offset":         strconv.Itoa(offset),
+			"limit":          strconv.Itoa(limit),
 			"path":           fileID.toAPIParam(),
 		},
 	}

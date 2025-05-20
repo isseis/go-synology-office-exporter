@@ -46,17 +46,17 @@ func (m *MockFileSystem) CreateFile(filename string, data []byte, dirPerm os.Fil
 }
 
 type MockSynologySession struct {
-	ListFunc         func(rootDirID synd.FileID) (*synd.ListResponse, error)
+	ListFunc         func(rootDirID synd.FileID, offset, limit int) (*synd.ListResponse, error)
 	ExportFunc       func(fileID synd.FileID) (*synd.ExportResponse, error)
 	TeamFolderFunc   func() (*synd.TeamFolderResponse, error)
 	SharedWithMeFunc func() (*synd.SharedWithMeResponse, error)
 }
 
-func (m *MockSynologySession) List(rootDirID synd.FileID) (*synd.ListResponse, error) {
-	if m.ListFunc != nil {
-		return m.ListFunc(rootDirID)
+func (m *MockSynologySession) List(rootDirID synd.FileID, offset, limit int) (*synd.ListResponse, error) {
+	if m.ListFunc == nil {
+		return nil, errors.New("ListFunc not set")
 	}
-	return &synd.ListResponse{}, nil
+	return m.ListFunc(rootDirID, offset, limit)
 }
 
 func (m *MockSynologySession) Export(fileID synd.FileID) (*synd.ExportResponse, error) {
@@ -387,7 +387,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mocks
 			mockSession := &MockSynologySession{
-				ListFunc: func(rootDirID synd.FileID) (*synd.ListResponse, error) {
+				ListFunc: func(rootDirID synd.FileID, offset, limit int) (*synd.ListResponse, error) {
 					// Track that this directory was listed
 					if tt.trackedListCalls != nil {
 						tt.trackedListCalls[rootDirID] = true
