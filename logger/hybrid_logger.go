@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"sync"
@@ -14,7 +15,6 @@ type Logger interface {
 	Info(msg string, args ...interface{})
 	Warn(msg string, args ...interface{})
 	Error(msg string, args ...interface{})
-	With(args ...interface{}) Logger
 	FlushWebhook() error
 }
 
@@ -46,8 +46,7 @@ func NewHybridLogger(cfg Config) Logger {
 
 // sendToWebhook is a stub for now to allow build. Implement as needed.
 func sendToWebhook(webhookURL, appName, env string, logs []slog.Record) error {
-	// TODO: Implement webhook sending logic
-	return nil
+	return fmt.Errorf("sendToWebhook not implemented yet")
 }
 
 // slogLevel converts our Level to slog.Level
@@ -82,10 +81,6 @@ func (h *hybridLogger) Debug(msg string, args ...interface{}) { h.log(slog.Level
 func (h *hybridLogger) Info(msg string, args ...interface{})  { h.log(slog.LevelInfo, msg, args...) }
 func (h *hybridLogger) Warn(msg string, args ...interface{})  { h.log(slog.LevelWarn, msg, args...) }
 func (h *hybridLogger) Error(msg string, args ...interface{}) { h.log(slog.LevelError, msg, args...) }
-func (h *hybridLogger) With(args ...interface{}) Logger {
-	// Not implemented: slog.JSONHandler does not support With, so return self
-	return h
-}
 func (h *hybridLogger) FlushWebhook() error {
 	if h.webhookURL == "" || len(h.webhookBuffer) == 0 {
 		return nil
