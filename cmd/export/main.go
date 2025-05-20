@@ -3,13 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/joho/godotenv"
 
+	"github.com/isseis/go-synology-office-exporter/logger"
 	syndexp "github.com/isseis/go-synology-office-exporter/synology_drive_exporter"
 )
 
@@ -73,86 +73,128 @@ func init() {
 	}
 }
 
-func main() {
-	fmt.Println("Starting Synology Office Exporter...")
+// printUsage prints the complete usage information including flags and environment variables
+func printUsage() {
+	// Print standard flag usage
+	fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
+	flag.PrintDefaults()
 
-	// Define command-line flags
+	// Print logger environment variables
+	fmt.Fprintln(flag.CommandLine.Output(), "\nLogger environment variables:")
+	loggerEnvVars := logger.GetEnvVarsHelp()
+	for _, v := range loggerEnvVars {
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-20s %s\n", v.Name, v.Description)
+	}
+
+	// Print Synology NAS environment variables
+	synologyEnvVars := []struct {
+		Name        string
+		Description string
+	}{
+		{"SYNOLOGY_NAS_USER", "Synology NAS username"},
+		{"SYNOLOGY_NAS_PASS", "Synology NAS password"},
+		{"SYNOLOGY_NAS_URL", "Synology NAS URL"},
+		{"SYNOLOGY_DOWNLOAD_DIR", "Directory to save downloaded files (default: current directory)"},
+	}
+
+	fmt.Fprintln(flag.CommandLine.Output(), "\nSynology NAS environment variables:")
+	for _, v := range synologyEnvVars {
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-20s %s\n", v.Name, v.Description)
+	}
+}
+
+func main() {
+	flag.Usage = printUsage
+
+	// Define command-line flags for Synology connection (not handled by config)
 	userFlag := flag.String("user", "", "Synology NAS username")
 	passFlag := flag.String("pass", "", "Synology NAS password")
 	urlFlag := flag.String("url", "", "Synology NAS URL")
 	downloadDirFlag := flag.String("output", "", "Directory to save downloaded files")
 	sourcesFlag := flag.String("sources", "mydrive,teamfolder,shared", "Comma-separated list of sources to export (mydrive,teamfolder,shared)")
-	// dry_run: If true, performs a dry run (no files are downloaded or written, only statistics are shown)
 	dryRunFlag := flag.Bool("dry_run", false, "If set, perform a dry run (no file downloads, only show statistics)")
+
+	// Parse all flags
 	flag.Parse()
 
-	// Fallback to environment variables if flags are not provided
+	// Now load config which will use the parsed flag values
+	cfg, err := logger.LoadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading logger config: %v\n\n", err)
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	log := logger.NewHybridLogger(*cfg)
+	defer func() {
+		if err := log.FlushWebhook(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to flush webhook logs: %v\n", err)
+		}
+	}()
+
+	fmt.Println("Starting Synology Office Exporter...")
+
 	user := *userFlag
 	if user == "" {
 		user = os.Getenv("SYNOLOGY_NAS_USER")
 	}
-
 	pass := *passFlag
 	if pass == "" {
 		pass = os.Getenv("SYNOLOGY_NAS_PASS")
 	}
-
 	url := *urlFlag
 	if url == "" {
 		url = os.Getenv("SYNOLOGY_NAS_URL")
 	}
-
 	downloadDir := *downloadDirFlag
 	if downloadDir == "" {
 		downloadDir = os.Getenv("SYNOLOGY_DOWNLOAD_DIR")
 	}
-	// Use current directory if no download directory is specified
 	if downloadDir == "" {
 		downloadDir = "."
 	}
-
-	// Check if directory exists
 	if stat, err := os.Stat(downloadDir); err != nil || !stat.IsDir() {
 		if err != nil {
-			fmt.Printf("Warning: Download directory '%s' does not exist. Attempting to create it.", downloadDir)
+			fmt.Printf("Warning: Download directory '%s' does not exist. Attempting to create it.\n", downloadDir)
 			if err := os.MkdirAll(downloadDir, 0755); err != nil {
-				log.Fatalf("Failed to create download directory: %v", err)
+				fmt.Fprintf(os.Stderr, "Failed to create download directory: %v\n", err)
+				os.Exit(1)
 			}
 		} else {
-			log.Fatalf("Error: Specified path '%s' is not a directory", downloadDir)
+			fmt.Fprintf(os.Stderr, "Error: Specified path '%s' is not a directory\n", downloadDir)
+			os.Exit(1)
 		}
 	}
-
-	// Convert to absolute path
-	downloadDir, err := filepath.Abs(downloadDir)
+	downloadDir, err = filepath.Abs(downloadDir)
 	if err != nil {
-		log.Fatalf("Failed to resolve absolute path of download directory: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to resolve absolute path of download directory: %v\n", err)
+		os.Exit(1)
 	}
-	fmt.Printf("Files will be downloaded to: %s", downloadDir)
+	fmt.Printf("Files will be downloaded to: %s\n", downloadDir)
 
 	if user == "" || pass == "" || url == "" {
-		log.Fatalf("Missing required parameters: user, pass, and url must be provided either as flags or environment variables")
+		fmt.Fprintf(os.Stderr, "Missing required parameters: user, pass, and url must be provided either as flags or environment variables\n")
+		os.Exit(1)
 	}
 
-	fmt.Printf("Synology Office Exporter v%s\n", Version)
+	log.Info("Synology Office Exporter started", "version", Version)
 	exporter, err := syndexp.NewExporter(user, pass, url, downloadDir, syndexp.WithDryRun(*dryRunFlag))
 	if err != nil {
-		log.Fatalf("Failed to create exporter: %v", err)
+		log.Error("Failed to create exporter", "error", err)
+		os.Exit(1)
 	}
 
 	exitCode := 0
 
 	sources, err := parseSources(*sourcesFlag)
 	if err != nil {
-		log.Fatalf("Error parsing sources: %v. Valid sources are: %s, %s, %s",
-			err, sourceMyDrive, sourceTeamFolder, sourceShared)
+		log.Error("Error parsing sources", "error", err, "valid_sources", []string{string(sourceMyDrive), string(sourceTeamFolder), string(sourceShared)})
+		os.Exit(1)
 	}
 
-	// Run the export for each specified source
 	for _, source := range sources {
 		var stats syndexp.ExportStats
 		var err error
-
 		switch source {
 		case sourceMyDrive:
 			stats, err = exporter.ExportMyDrive()
@@ -161,23 +203,22 @@ func main() {
 		case sourceShared:
 			stats, err = exporter.ExportSharedWithMe()
 		default:
-			continue // Shouldn't happen due to parseSources validation
+			continue
 		}
-
 		if err != nil {
 			exitCode = 1
+			log.Error("Export failed", "source", source, "error", err)
 			fmt.Printf("Export [%s] failed: %v\n", source, err)
 			continue
 		}
-
-		fmt.Printf("[%s] Downloaded: %d, Skipped: %d, Ignored: %d, Removed:	 %d, DownloadErrs: %d, RemoveErrs: %d\n",
+		log.Info("Export completed", "source", source, "downloaded", stats.Downloaded, "skipped", stats.Skipped, "ignored", stats.Ignored, "removed", stats.Removed, "download_errs", stats.DownloadErrs, "remove_errs", stats.RemoveErrs)
+		fmt.Printf("[%s] Downloaded: %d, Skipped: %d, Ignored: %d, Removed: %d, DownloadErrs: %d, RemoveErrs: %d\n",
 			source, stats.Downloaded, stats.Skipped, stats.Ignored, stats.Removed, stats.DownloadErrs, stats.RemoveErrs)
-
 		if stats.TotalErrs() > 0 {
 			exitCode = 1
 		}
 	}
-
+	log.Info("Export complete")
 	fmt.Println("Export complete")
 	os.Exit(exitCode)
 }
