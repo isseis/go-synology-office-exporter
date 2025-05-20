@@ -138,7 +138,7 @@ func (e *Exporter) ExportMyDrive() (ExportStats, error) {
 
 // ExportTeamFolder exports convertible files from all team folders, using download history to avoid duplicates.
 func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
-	teamFolders, err := listAllTeamFolders(e.session)
+	teamFolders, err := teamFoldersAll(e.session)
 	if err != nil {
 		return ExportStats{}, err
 	}
@@ -154,7 +154,7 @@ func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
 
 // ExportSharedWithMe exports convertible files and directories shared with the user, using download history to avoid duplicates.
 func (e *Exporter) ExportSharedWithMe() (ExportStats, error) {
-	sharedItems, err := listAllSharedWithMe(e.session)
+	sharedItems, err := sharedWithMeAll(e.session)
 	if err != nil {
 		return ExportStats{}, err
 	}

@@ -31,7 +31,7 @@ type SharedWithMeResponse struct {
 //   - limit: Maximum number of items to return (1-DefaultMaxPageSize)
 //   - Returns a SharedWithMeResponse containing the list of shared items and their details,
 //     or an error if the API request fails.
-func (s *SynologySession) SharedWithMe(offset, limit int) (*SharedWithMeResponse, error) {
+func (s *SynologySession) SharedWithMe(offset, limit int64) (*SharedWithMeResponse, error) {
 	// Validate pagination parameters
 	if offset < 0 {
 		return nil, fmt.Errorf("offset must be >= 0, got %d", offset)
@@ -48,8 +48,8 @@ func (s *SynologySession) SharedWithMe(offset, limit int) (*SharedWithMeResponse
 			"filter":         "{}",
 			"sort_direction": "asc",
 			"sort_by":        "owner",
-			"offset":         strconv.Itoa(offset),
-			"limit":          strconv.Itoa(limit),
+			"offset":         strconv.FormatInt(offset, 10),
+			"limit":          strconv.FormatInt(limit, 10),
 		},
 	}
 

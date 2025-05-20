@@ -10,8 +10,8 @@ import (
 func TestList(t *testing.T) {
 	tests := []struct {
 		name          string
-		offset        int
-		limit         int
+		offset        int64
+		limit         int64
 		expectedError string
 	}{
 		{"valid request", 0, 100, ""},

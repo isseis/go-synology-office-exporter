@@ -24,7 +24,7 @@ type SessionOption func(*SynologySession)
 
 // WithMaxPageSize sets the maximum number of items that can be requested in a single List call.
 // If not set, DefaultMaxPageSize will be used.
-func WithMaxPageSize(maxPageSize int) SessionOption {
+func WithMaxPageSize(maxPageSize int64) SessionOption {
 	return func(s *SynologySession) {
 		s.maxPageSize = maxPageSize
 	}
@@ -38,7 +38,7 @@ type SynologySession struct {
 	scheme      string      // URL scheme (http or https)
 	sid         SessionID   // Session ID (set after login)
 	http_client http.Client // HTTP client with cookie support
-	maxPageSize int         // Maximum number of items per page for List operations
+	maxPageSize int64       // Maximum number of items per page for List operations
 }
 
 // NewSynologySession creates a new Synology API session with the provided credentials and base URL.

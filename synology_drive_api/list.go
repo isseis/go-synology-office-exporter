@@ -25,7 +25,7 @@ type ListResponse struct {
 //   - offset: The starting position (must be >= 0)
 //   - limit: Maximum number of items to return (must be > 0 and <= session's maxPageSize)
 //   - Returns a ListResponse with items and total count, or an error if the operation fails.
-func (s *SynologySession) List(fileID FileID, offset, limit int) (*ListResponse, error) {
+func (s *SynologySession) List(fileID FileID, offset, limit int64) (*ListResponse, error) {
 	if offset < 0 {
 		return nil, fmt.Errorf("offset must be >= 0, got %d", offset)
 	}
@@ -41,8 +41,8 @@ func (s *SynologySession) List(fileID FileID, offset, limit int) (*ListResponse,
 			"filter":         "{}",
 			"sort_direction": "asc",
 			"sort_by":        "owner",
-			"offset":         strconv.Itoa(offset),
-			"limit":          strconv.Itoa(limit),
+			"offset":         strconv.FormatInt(offset, 10),
+			"limit":          strconv.FormatInt(limit, 10),
 			"path":           fileID.toAPIParam(),
 		},
 	}

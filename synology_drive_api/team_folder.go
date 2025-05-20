@@ -21,7 +21,7 @@ type jsonTeamFolderListResponseV1 struct {
 	synologyAPIResponse
 	Data struct {
 		Items []jsonTeamFolderListItemV1 `json:"items"`
-		Total int                        `json:"total"`
+		Total int64                      `json:"total"`
 	} `json:"data"`
 }
 
@@ -39,7 +39,7 @@ type TeamFolderResponseItem struct {
 // TeamFolderResponse represents the response from listing team folders
 type TeamFolderResponse struct {
 	Items []*TeamFolderResponseItem
-	Total int
+	Total int64
 	raw   []byte // Stores the original raw JSON response
 }
 
@@ -65,7 +65,7 @@ func (j *jsonTeamFolderListItemV1) toTeamFolderResponseItem() *TeamFolderRespons
 //   - limit: Maximum number of items to return (1-DefaultMaxPageSize)
 //   - Returns a TeamFolderResponse containing the list of team folders and their details,
 //     or an error if the API request fails.
-func (s *SynologySession) TeamFolder(offset, limit int) (*TeamFolderResponse, error) {
+func (s *SynologySession) TeamFolder(offset, limit int64) (*TeamFolderResponse, error) {
 	// Validate pagination parameters
 	if offset < 0 {
 		return nil, fmt.Errorf("offset must be >= 0, got %d", offset)
@@ -82,8 +82,8 @@ func (s *SynologySession) TeamFolder(offset, limit int) (*TeamFolderResponse, er
 			"filter":         "{}",
 			"sort_direction": "asc",
 			"sort_by":        "owner",
-			"offset":         strconv.Itoa(offset),
-			"limit":          strconv.Itoa(limit),
+			"offset":         strconv.FormatInt(offset, 10),
+			"limit":          strconv.FormatInt(limit, 10),
 		},
 	}
 
