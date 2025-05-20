@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/isseis/go-synology-office-exporter/download_history"
+	"github.com/isseis/go-synology-office-exporter/filelock"
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
@@ -177,11 +178,24 @@ func toExportStats(stats download_history.ExportStats) ExportStats {
 }
 
 // exportItemsWithHistory is an internal helper for exporting a slice of ExportItem with download history management.
+// Only one process can execute this function for a given history file at a time.
+// If another process is already processing the same history file, this function will return an error.
 func (e *Exporter) exportItemsWithHistory(
 	items []ExportItem,
 	historyFile string,
 ) (ExportStats, error) {
 	historyPath := filepath.Join(e.downloadDir, historyFile)
+
+	// Acquire a file lock to prevent concurrent execution for the same history file
+	unlock, err := filelock.TryLock(historyPath)
+	if err == filelock.ErrLockHeld {
+		return ExportStats{}, fmt.Errorf("another process is already exporting to %s", historyFile)
+	}
+	if err != nil {
+		return ExportStats{}, fmt.Errorf("failed to acquire lock for %s: %w", historyFile, err)
+	}
+	defer unlock()
+
 	history, err := download_history.NewDownloadHistory(historyPath)
 	if err != nil {
 		return ExportStats{}, &DownloadHistoryOperationError{Op: "create", Err: err}
