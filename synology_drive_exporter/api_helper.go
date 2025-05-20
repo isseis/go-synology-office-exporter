@@ -2,7 +2,6 @@ package synology_drive_exporter
 
 import (
 	"fmt"
-	"log"
 
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
@@ -35,14 +34,6 @@ type listPageFunc[T any] func(offset, limit int64) (items []T, total int64, err 
 func listAllPaginated[T any](fetchPage listPageFunc[T], pageSize int64) ([]T, error) {
 	var allItems []T
 	var totalItems int64
-
-	// Clamp pageSize to DefaultMaxPageSize if it's larger
-	if pageSize > synd.DefaultMaxPageSize {
-		log.Printf("Warning: pageSize %d exceeds maximum allowed value %d, using %d", pageSize, synd.DefaultMaxPageSize, synd.DefaultMaxPageSize)
-		pageSize = synd.DefaultMaxPageSize
-	} else if pageSize <= 0 {
-		return nil, fmt.Errorf("pageSize must be > 0, got %d", pageSize)
-	}
 
 	for offset := int64(0); ; offset += pageSize {
 		items, total, err := fetchPage(offset, pageSize)
