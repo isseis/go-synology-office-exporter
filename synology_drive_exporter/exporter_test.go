@@ -48,8 +48,8 @@ func (m *MockFileSystem) CreateFile(filename string, data []byte, dirPerm os.Fil
 type MockSynologySession struct {
 	ListFunc         func(rootDirID synd.FileID, offset, limit int) (*synd.ListResponse, error)
 	ExportFunc       func(fileID synd.FileID) (*synd.ExportResponse, error)
-	TeamFolderFunc   func() (*synd.TeamFolderResponse, error)
-	SharedWithMeFunc func() (*synd.SharedWithMeResponse, error)
+	TeamFolderFunc   func(offset, limit int) (*synd.TeamFolderResponse, error)
+	SharedWithMeFunc func(offset, limit int) (*synd.SharedWithMeResponse, error)
 }
 
 func (m *MockSynologySession) List(rootDirID synd.FileID, offset, limit int) (*synd.ListResponse, error) {
@@ -66,16 +66,16 @@ func (m *MockSynologySession) Export(fileID synd.FileID) (*synd.ExportResponse, 
 	return &synd.ExportResponse{}, nil
 }
 
-func (m *MockSynologySession) TeamFolder() (*synd.TeamFolderResponse, error) {
+func (m *MockSynologySession) TeamFolder(offset, limit int) (*synd.TeamFolderResponse, error) {
 	if m.TeamFolderFunc != nil {
-		return m.TeamFolderFunc()
+		return m.TeamFolderFunc(offset, limit)
 	}
 	return &synd.TeamFolderResponse{}, nil
 }
 
-func (m *MockSynologySession) SharedWithMe() (*synd.SharedWithMeResponse, error) {
+func (m *MockSynologySession) SharedWithMe(offset, limit int) (*synd.SharedWithMeResponse, error) {
 	if m.SharedWithMeFunc != nil {
-		return m.SharedWithMeFunc()
+		return m.SharedWithMeFunc(offset, limit)
 	}
 	return &synd.SharedWithMeResponse{}, nil
 }

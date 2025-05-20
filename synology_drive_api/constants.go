@@ -3,6 +3,8 @@ package synology_drive_api
 // Default constants for the Synology Drive API
 const (
 	// DefaultMaxPageSize is the default maximum number of items that can be
-	// requested in a single List API call.
+	// requested in a single API call.
 	DefaultMaxPageSize = 1000
+	// DefaultPageSize is the default number of items to request per page when making paginated API calls.
+	DefaultPageSize = 1000
 )

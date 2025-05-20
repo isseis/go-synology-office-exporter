@@ -14,7 +14,7 @@ func TestSharedWithMe(t *testing.T) {
 	err = s.Login()
 	require.NoError(t, err)
 
-	resp, err := s.SharedWithMe()
+	resp, err := s.SharedWithMe(0, DefaultMaxPageSize)
 	require.NoError(t, err)
 	// t.Log("Response:", string(resp.raw))
 	assert.GreaterOrEqual(t, resp.Total, int64(0))

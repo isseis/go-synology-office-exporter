@@ -138,12 +138,12 @@ func (e *Exporter) ExportMyDrive() (ExportStats, error) {
 
 // ExportTeamFolder exports convertible files from all team folders, using download history to avoid duplicates.
 func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
-	teamFolder, err := e.session.TeamFolder()
+	teamFolders, err := listAllTeamFolders(e.session)
 	if err != nil {
 		return ExportStats{}, err
 	}
 	var rootIDs []synd.FileID
-	for _, item := range teamFolder.Items {
+	for _, item := range teamFolders {
 		rootIDs = append(rootIDs, item.FileID)
 	}
 	return e.ExportRootsWithHistory(
@@ -154,12 +154,12 @@ func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
 
 // ExportSharedWithMe exports convertible files and directories shared with the user, using download history to avoid duplicates.
 func (e *Exporter) ExportSharedWithMe() (ExportStats, error) {
-	sharedWithMe, err := e.session.SharedWithMe()
+	sharedItems, err := listAllSharedWithMe(e.session)
 	if err != nil {
 		return ExportStats{}, err
 	}
 	var exportItems []ExportItem
-	for _, item := range sharedWithMe.Items {
+	for _, item := range sharedItems {
 		exportItems = append(exportItems, toExportItem(item))
 	}
 	return e.exportItemsWithHistory(exportItems, "shared_with_me_history.json")

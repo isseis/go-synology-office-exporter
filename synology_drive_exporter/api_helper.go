@@ -9,41 +9,74 @@ import (
 // SessionInterface abstracts Synology session operations for export and testability.
 type SessionInterface interface {
 	// List retrieves a paginated list of items from the specified root directory.
-	//   - rootDirID: The identifier of the folder to list
-	//   - offset: The starting position (0-based)
-	//   - limit: Maximum number of items to return (1-1000)
-	//   - Returns a ListResponse with items and total count, or an error if the operation fails.
 	List(rootDirID synd.FileID, offset, limit int) (*synd.ListResponse, error)
 
 	// Export exports the specified file, performing format conversion if needed.
 	Export(fileID synd.FileID) (*synd.ExportResponse, error)
 
-	// TeamFolder retrieves team folders from the Synology Drive API.
-	TeamFolder() (*synd.TeamFolderResponse, error)
+	// TeamFolder retrieves a paginated list of team folders.
+	TeamFolder(offset, limit int) (*synd.TeamFolderResponse, error)
 
-	// SharedWithMe retrieves files shared with the user.
-	SharedWithMe() (*synd.SharedWithMeResponse, error)
+	// SharedWithMe retrieves a paginated list of files and folders shared with the user.
+	SharedWithMe(offset, limit int) (*synd.SharedWithMeResponse, error)
 }
 
 // listAll retrieves all items from a directory by making multiple paginated requests.
-// This is a helper function that can be used by implementations of SessionInterface.
 func listAll(s SessionInterface, rootDirID synd.FileID) ([]*synd.ResponseItem, error) {
-	const pageSize = 1000
 	var allItems []*synd.ResponseItem
-
-	for offset := 0; ; offset += pageSize {
-		resp, err := s.List(rootDirID, offset, pageSize)
+	var totalItems int
+	for offset := 0; ; offset += synd.DefaultPageSize {
+		resp, err := s.List(rootDirID, offset, synd.DefaultPageSize)
 		if err != nil {
 			return nil, fmt.Errorf("error listing items at offset %d: %w", offset, err)
 		}
-
 		allItems = append(allItems, resp.Items...)
-
-		// Stop if we've received all items or if the response is empty
-		if len(allItems) >= int(resp.Total) || len(resp.Items) == 0 {
+		if offset == 0 && resp.Total > 0 {
+			totalItems = int(resp.Total)
+		}
+		if len(allItems) >= totalItems || len(resp.Items) == 0 {
 			break
 		}
 	}
+	return allItems, nil
+}
 
+// listAllTeamFolders retrieves all team folders by making multiple paginated requests.
+func listAllTeamFolders(s SessionInterface) ([]*synd.TeamFolderResponseItem, error) {
+	var allItems []*synd.TeamFolderResponseItem
+	var totalItems int
+	for offset := 0; ; offset += synd.DefaultPageSize {
+		resp, err := s.TeamFolder(offset, synd.DefaultPageSize)
+		if err != nil {
+			return nil, fmt.Errorf("error listing team folders at offset %d: %w", offset, err)
+		}
+		allItems = append(allItems, resp.Items...)
+		if offset == 0 && resp.Total > 0 {
+			totalItems = int(resp.Total)
+		}
+		if len(allItems) >= totalItems || len(resp.Items) == 0 {
+			break
+		}
+	}
+	return allItems, nil
+}
+
+// listAllSharedWithMe retrieves all shared items by making multiple paginated requests.
+func listAllSharedWithMe(s SessionInterface) ([]*synd.ResponseItem, error) {
+	var allItems []*synd.ResponseItem
+	var totalItems int
+	for offset := 0; ; offset += synd.DefaultPageSize {
+		resp, err := s.SharedWithMe(offset, synd.DefaultPageSize)
+		if err != nil {
+			return nil, fmt.Errorf("error listing shared items at offset %d: %w", offset, err)
+		}
+		allItems = append(allItems, resp.Items...)
+		if offset == 0 && resp.Total > 0 {
+			totalItems = int(resp.Total)
+		}
+		if len(allItems) >= totalItems || len(resp.Items) == 0 {
+			break
+		}
+	}
 	return allItems, nil
 }
