@@ -1,6 +1,22 @@
 package logger
 
-import "io"
+import (
+	"flag"
+	"io"
+)
+
+// Command line flags
+var (
+	logLevelFlag   = flag.String("log-level", "", "Log level (debug, info, warn, error)")
+	webhookURLFlag = flag.String("webhook-url", "", "Webhook URL for logging")
+	appNameFlag    = flag.String("app-name", "", "Application name")
+	envFlag        = flag.String("env", "", "Environment (development, staging, production)")
+)
+
+// RegisterFlags is a no-op function kept for backward compatibility.
+// Flags are now registered at package initialization time.
+// This function will be removed in a future version.
+func RegisterFlags() {}
 
 // Level represents the severity of the log message.
 type Level int

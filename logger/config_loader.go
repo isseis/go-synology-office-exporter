@@ -9,20 +9,29 @@ import (
 
 // LoadConfig loads logger config from flags and environment variables.
 // Flags take precedence over environment variables.
-// NOTE: The caller (main.go) must call flag.Parse() before calling LoadConfig.
+// The caller must call flag.Parse() before calling this function.
 func LoadConfig() (*Config, error) {
-	var (
-		levelStr   string
-		webhookURL string
-		appName    string
-		envName    string
-	)
-	flag.StringVar(&levelStr, "log-level", "", "Log level (debug, info, warn, error)")
-	flag.StringVar(&webhookURL, "webhook-url", "", "Webhook URL for logging")
-	flag.StringVar(&appName, "app-name", "", "Application name")
-	flag.StringVar(&envName, "env", "", "Environment (development, staging, production)")
-	// Do NOT call flag.Parse() here; main.go is responsible for parsing flags.
+	// Start with default values
+	levelStr := ""
+	webhookURL := ""
+	appName := ""
+	envName := ""
 
+	// Use flag values if they were set
+	if logLevelFlag != nil && *logLevelFlag != "" {
+		levelStr = *logLevelFlag
+	}
+	if webhookURLFlag != nil && *webhookURLFlag != "" {
+		webhookURL = *webhookURLFlag
+	}
+	if appNameFlag != nil && *appNameFlag != "" {
+		appName = *appNameFlag
+	}
+	if envFlag != nil && *envFlag != "" {
+		envName = *envFlag
+	}
+
+	// Fall back to environment variables if flags not set
 	if levelStr == "" {
 		levelStr = getEnv("LOG_LEVEL", "info")
 	}

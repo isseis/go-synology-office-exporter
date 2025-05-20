@@ -76,6 +76,18 @@ func init() {
 func main() {
 	flag.Usage = logger.Usage
 
+	// Define command-line flags for Synology connection (not handled by config)
+	userFlag := flag.String("user", "", "Synology NAS username")
+	passFlag := flag.String("pass", "", "Synology NAS password")
+	urlFlag := flag.String("url", "", "Synology NAS URL")
+	downloadDirFlag := flag.String("output", "", "Directory to save downloaded files")
+	sourcesFlag := flag.String("sources", "mydrive,teamfolder,shared", "Comma-separated list of sources to export (mydrive,teamfolder,shared)")
+	dryRunFlag := flag.Bool("dry_run", false, "If set, perform a dry run (no file downloads, only show statistics)")
+
+	// Parse all flags
+	flag.Parse()
+
+	// Now load config which will use the parsed flag values
 	cfg, err := logger.LoadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading logger config: %v\n\n", err)
@@ -91,15 +103,6 @@ func main() {
 	}()
 
 	fmt.Println("Starting Synology Office Exporter...")
-
-	// Define command-line flags for Synology connection (not handled by config)
-	userFlag := flag.String("user", "", "Synology NAS username")
-	passFlag := flag.String("pass", "", "Synology NAS password")
-	urlFlag := flag.String("url", "", "Synology NAS URL")
-	downloadDirFlag := flag.String("output", "", "Directory to save downloaded files")
-	sourcesFlag := flag.String("sources", "mydrive,teamfolder,shared", "Comma-separated list of sources to export (mydrive,teamfolder,shared)")
-	dryRunFlag := flag.Bool("dry_run", false, "If set, perform a dry run (no file downloads, only show statistics)")
-	flag.Parse()
 
 	user := *userFlag
 	if user == "" {
