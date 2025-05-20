@@ -82,10 +82,11 @@ func (h *hybridLogger) Info(msg string, args ...interface{})  { h.log(slog.Level
 func (h *hybridLogger) Warn(msg string, args ...interface{})  { h.log(slog.LevelWarn, msg, args...) }
 func (h *hybridLogger) Error(msg string, args ...interface{}) { h.log(slog.LevelError, msg, args...) }
 func (h *hybridLogger) FlushWebhook() error {
+	h.mu.Lock()
 	if h.webhookURL == "" || len(h.webhookBuffer) == 0 {
+		h.mu.Unlock()
 		return nil
 	}
-	h.mu.Lock()
 	logs := make([]slog.Record, len(h.webhookBuffer))
 	copy(logs, h.webhookBuffer)
 	h.webhookBuffer = h.webhookBuffer[:0]
