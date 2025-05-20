@@ -1,5 +1,10 @@
 package synology_drive_api
 
+import (
+	"fmt"
+	"strconv"
+)
+
 // jsonTeamFolderListItemV1 represents the JSON structure of a team folder list item
 type jsonTeamFolderListItemV1 struct {
 	Capabilities     jsonCapabilities `json:"capabilities"`
@@ -16,7 +21,7 @@ type jsonTeamFolderListResponseV1 struct {
 	synologyAPIResponse
 	Data struct {
 		Items []jsonTeamFolderListItemV1 `json:"items"`
-		Total int                        `json:"total"`
+		Total int64                      `json:"total"`
 	} `json:"data"`
 }
 
@@ -34,7 +39,7 @@ type TeamFolderResponseItem struct {
 // TeamFolderResponse represents the response from listing team folders
 type TeamFolderResponse struct {
 	Items []*TeamFolderResponseItem
-	Total int
+	Total int64
 	raw   []byte // Stores the original raw JSON response
 }
 
@@ -55,7 +60,20 @@ func (j *jsonTeamFolderListItemV1) toTeamFolderResponseItem() *TeamFolderRespons
 // TeamFolder retrieves a list of team folders from the Synology Drive API.
 // It returns a TeamFolderResponse containing the list of team folders and their details,
 // or an error if the API request fails.
-func (s *SynologySession) TeamFolder() (*TeamFolderResponse, error) {
+// TeamFolder retrieves a paginated list of team folders from the Synology Drive API.
+//   - offset: The starting position (0-based)
+//   - limit: Maximum number of items to return (1-DefaultMaxPageSize)
+//   - Returns a TeamFolderResponse containing the list of team folders and their details,
+//     or an error if the API request fails.
+func (s *SynologySession) TeamFolder(offset, limit int64) (*TeamFolderResponse, error) {
+	// Validate pagination parameters
+	if offset < 0 {
+		return nil, fmt.Errorf("offset must be >= 0, got %d", offset)
+	}
+	if limit <= 0 || limit > DefaultMaxPageSize {
+		return nil, fmt.Errorf("limit must be between 1 and %d, got %d", DefaultMaxPageSize, limit)
+	}
+
 	req := apiRequest{
 		api:     APINameSynologyDriveTeamFolders,
 		method:  "list",
@@ -64,8 +82,8 @@ func (s *SynologySession) TeamFolder() (*TeamFolderResponse, error) {
 			"filter":         "{}",
 			"sort_direction": "asc",
 			"sort_by":        "owner",
-			"offset":         "0",
-			"limit":          "1000",
+			"offset":         strconv.FormatInt(offset, 10),
+			"limit":          strconv.FormatInt(limit, 10),
 		},
 	}
 

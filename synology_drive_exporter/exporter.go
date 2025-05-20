@@ -71,21 +71,6 @@ func (fs *DefaultFileSystem) CreateFile(filename string, data []byte, dirPerm os
 	return nil
 }
 
-// SessionInterface abstracts Synology session operations for export and testability.
-type SessionInterface interface {
-	// List retrieves items from the specified root directory.
-	List(rootDirID synd.FileID) (*synd.ListResponse, error)
-
-	// Export exports the specified file, performing format conversion if needed.
-	Export(fileID synd.FileID) (*synd.ExportResponse, error)
-
-	// TeamFolder retrieves team folders from the Synology Drive API.
-	TeamFolder() (*synd.TeamFolderResponse, error)
-
-	// SharedWithMe retrieves files shared with the user.
-	SharedWithMe() (*synd.SharedWithMeResponse, error)
-}
-
 // Exporter handles exporting files from Synology Drive, maintaining download history and file system abstraction.
 type Exporter struct {
 	session     SessionInterface
@@ -153,12 +138,12 @@ func (e *Exporter) ExportMyDrive() (ExportStats, error) {
 
 // ExportTeamFolder exports convertible files from all team folders, using download history to avoid duplicates.
 func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
-	teamFolder, err := e.session.TeamFolder()
+	teamFolders, err := teamFoldersAll(e.session)
 	if err != nil {
 		return ExportStats{}, err
 	}
 	var rootIDs []synd.FileID
-	for _, item := range teamFolder.Items {
+	for _, item := range teamFolders {
 		rootIDs = append(rootIDs, item.FileID)
 	}
 	return e.ExportRootsWithHistory(
@@ -169,12 +154,12 @@ func (e *Exporter) ExportTeamFolder() (ExportStats, error) {
 
 // ExportSharedWithMe exports convertible files and directories shared with the user, using download history to avoid duplicates.
 func (e *Exporter) ExportSharedWithMe() (ExportStats, error) {
-	sharedWithMe, err := e.session.SharedWithMe()
+	sharedItems, err := sharedWithMeAll(e.session)
 	if err != nil {
 		return ExportStats{}, err
 	}
 	var exportItems []ExportItem
-	for _, item := range sharedWithMe.Items {
+	for _, item := range sharedItems {
 		exportItems = append(exportItems, toExportItem(item))
 	}
 	return e.exportItemsWithHistory(exportItems, "shared_with_me_history.json")
@@ -235,13 +220,14 @@ func (e *Exporter) ExportRootsWithHistory(
 
 // processDirectory recursively processes a directory and its subdirectories, exporting convertible files and recording errors in history.
 func (e *Exporter) processDirectory(item ExportItem, history *download_history.DownloadHistory) {
-	list, err := e.session.List(item.FileID)
+	// Use listAll to handle pagination automatically
+	items, err := listAll(e.session, item.FileID)
 	if err != nil {
 		fmt.Printf("Failed to list directory %s: %v\n", item.DisplayPath, err)
 		history.ErrorCount.Increment()
 		return
 	}
-	for _, child := range list.Items {
+	for _, child := range items {
 		e.processItem(toExportItem(child), history)
 	}
 }

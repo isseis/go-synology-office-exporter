@@ -46,38 +46,47 @@ func (m *MockFileSystem) CreateFile(filename string, data []byte, dirPerm os.Fil
 }
 
 type MockSynologySession struct {
-	ListFunc         func(rootDirID synd.FileID) (*synd.ListResponse, error)
+	ListFunc         func(rootDirID synd.FileID, offset, limit int64) (*synd.ListResponse, error)
 	ExportFunc       func(fileID synd.FileID) (*synd.ExportResponse, error)
-	TeamFolderFunc   func() (*synd.TeamFolderResponse, error)
-	SharedWithMeFunc func() (*synd.SharedWithMeResponse, error)
+	TeamFolderFunc   func(offset, limit int64) (*synd.TeamFolderResponse, error)
+	SharedWithMeFunc func(offset, limit int64) (*synd.SharedWithMeResponse, error)
+	MaxPageSize      int64
 }
 
-func (m *MockSynologySession) List(rootDirID synd.FileID) (*synd.ListResponse, error) {
-	if m.ListFunc != nil {
-		return m.ListFunc(rootDirID)
+func (m *MockSynologySession) List(rootDirID synd.FileID, offset, limit int64) (*synd.ListResponse, error) {
+	if m.ListFunc == nil {
+		return nil, errors.New("ListFunc not set")
 	}
-	return &synd.ListResponse{}, nil
+	return m.ListFunc(rootDirID, offset, limit)
 }
 
 func (m *MockSynologySession) Export(fileID synd.FileID) (*synd.ExportResponse, error) {
 	if m.ExportFunc != nil {
 		return m.ExportFunc(fileID)
 	}
-	return &synd.ExportResponse{}, nil
+	return nil, errors.New("ExportFunc not set")
 }
 
-func (m *MockSynologySession) TeamFolder() (*synd.TeamFolderResponse, error) {
+func (m *MockSynologySession) TeamFolder(offset, limit int64) (*synd.TeamFolderResponse, error) {
 	if m.TeamFolderFunc != nil {
-		return m.TeamFolderFunc()
+		return m.TeamFolderFunc(offset, limit)
 	}
-	return &synd.TeamFolderResponse{}, nil
+	return nil, errors.New("TeamFolderFunc not set")
 }
 
-func (m *MockSynologySession) SharedWithMe() (*synd.SharedWithMeResponse, error) {
+func (m *MockSynologySession) SharedWithMe(offset, limit int64) (*synd.SharedWithMeResponse, error) {
 	if m.SharedWithMeFunc != nil {
-		return m.SharedWithMeFunc()
+		return m.SharedWithMeFunc(offset, limit)
 	}
-	return &synd.SharedWithMeResponse{}, nil
+	return nil, errors.New("SharedWithMeFunc not set")
+}
+
+// GetMaxPageSize returns the maximum number of items that can be requested per page.
+func (m *MockSynologySession) GetMaxPageSize() int64 {
+	if m.MaxPageSize <= 0 {
+		return synd.DefaultMaxPageSize
+	}
+	return m.MaxPageSize
 }
 
 func TestExporterExportMyDrive(t *testing.T) {
@@ -387,7 +396,7 @@ func TestExporterExportMyDrive(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mocks
 			mockSession := &MockSynologySession{
-				ListFunc: func(rootDirID synd.FileID) (*synd.ListResponse, error) {
+				ListFunc: func(rootDirID synd.FileID, offset, limit int64) (*synd.ListResponse, error) {
 					// Track that this directory was listed
 					if tt.trackedListCalls != nil {
 						tt.trackedListCalls[rootDirID] = true

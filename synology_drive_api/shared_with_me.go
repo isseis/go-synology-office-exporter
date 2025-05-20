@@ -2,6 +2,7 @@ package synology_drive_api
 
 import (
 	"fmt"
+	"strconv"
 )
 
 // jsonResponseItem represents a file or folder item in a Synology Drive listing or shared-with-me API response
@@ -25,7 +26,20 @@ type SharedWithMeResponse struct {
 	raw   []byte
 }
 
-func (s *SynologySession) SharedWithMe() (*SharedWithMeResponse, error) {
+// SharedWithMe retrieves a paginated list of files and folders shared with the user.
+//   - offset: The starting position (0-based)
+//   - limit: Maximum number of items to return (1-DefaultMaxPageSize)
+//   - Returns a SharedWithMeResponse containing the list of shared items and their details,
+//     or an error if the API request fails.
+func (s *SynologySession) SharedWithMe(offset, limit int64) (*SharedWithMeResponse, error) {
+	// Validate pagination parameters
+	if offset < 0 {
+		return nil, fmt.Errorf("offset must be >= 0, got %d", offset)
+	}
+	if limit <= 0 || limit > DefaultMaxPageSize {
+		return nil, fmt.Errorf("limit must be between 1 and %d, got %d", DefaultMaxPageSize, limit)
+	}
+
 	req := apiRequest{
 		api:     APINameSynologyDriveFiles,
 		method:  "shared_with_me",
@@ -34,8 +48,8 @@ func (s *SynologySession) SharedWithMe() (*SharedWithMeResponse, error) {
 			"filter":         "{}",
 			"sort_direction": "asc",
 			"sort_by":        "owner",
-			"offset":         "0",
-			"limit":          "1000",
+			"offset":         strconv.FormatInt(offset, 10),
+			"limit":          strconv.FormatInt(limit, 10),
 		},
 	}
 

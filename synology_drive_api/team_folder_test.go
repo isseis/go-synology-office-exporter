@@ -13,7 +13,7 @@ func TestTeamFolder(t *testing.T) {
 	err = s.Login()
 	require.NoError(t, err)
 
-	resp, err := s.TeamFolder()
+	resp, err := s.TeamFolder(0, DefaultMaxPageSize)
 	require.NoError(t, err)
 	//t.Log("Response:", string(resp.raw))
 	for _, item := range resp.Items {
