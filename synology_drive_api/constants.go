@@ -5,6 +5,4 @@ const (
 	// DefaultMaxPageSize is the default maximum number of items that can be
 	// requested in a single API call.
 	DefaultMaxPageSize = 1000
-	// DefaultPageSize is the default number of items to request per page when making paginated API calls.
-	DefaultPageSize = 1000
 )

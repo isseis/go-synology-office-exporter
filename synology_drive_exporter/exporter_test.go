@@ -63,21 +63,21 @@ func (m *MockSynologySession) Export(fileID synd.FileID) (*synd.ExportResponse, 
 	if m.ExportFunc != nil {
 		return m.ExportFunc(fileID)
 	}
-	return &synd.ExportResponse{}, nil
+	return nil, errors.New("ExportFunc not set")
 }
 
 func (m *MockSynologySession) TeamFolder(offset, limit int64) (*synd.TeamFolderResponse, error) {
 	if m.TeamFolderFunc != nil {
 		return m.TeamFolderFunc(offset, limit)
 	}
-	return &synd.TeamFolderResponse{}, nil
+	return nil, errors.New("TeamFolderFunc not set")
 }
 
 func (m *MockSynologySession) SharedWithMe(offset, limit int64) (*synd.SharedWithMeResponse, error) {
 	if m.SharedWithMeFunc != nil {
 		return m.SharedWithMeFunc(offset, limit)
 	}
-	return &synd.SharedWithMeResponse{}, nil
+	return nil, errors.New("SharedWithMeFunc not set")
 }
 
 func TestExporterExportMyDrive(t *testing.T) {

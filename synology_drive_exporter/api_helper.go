@@ -30,8 +30,8 @@ func listAllPaginated[T any](fetchPage listPageFunc[T]) ([]T, error) {
 	var allItems []T
 	var totalItems int64
 
-	for offset := int64(0); ; offset += synd.DefaultPageSize {
-		items, total, err := fetchPage(offset, synd.DefaultPageSize)
+	for offset := int64(0); ; offset += synd.DefaultMaxPageSize {
+		items, total, err := fetchPage(offset, synd.DefaultMaxPageSize)
 		if err != nil {
 			return nil, fmt.Errorf("error listing items at offset %d: %w", offset, err)
 		}
