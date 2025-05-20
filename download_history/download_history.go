@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
@@ -15,15 +17,15 @@ const HISTORY_VERSION = 2
 const HISTORY_MAGIC = "SYNOLOGY_OFFICE_EXPORTER"
 
 type counter struct {
-	count int
+	count int32
 }
 
 func (c *counter) Increment() {
-	c.count++
+	atomic.AddInt32(&c.count, 1)
 }
 
 func (c *counter) Get() int {
-	return c.count
+	return int(atomic.LoadInt32(&c.count))
 }
 
 // ExportStats holds the statistics of the export operation.
@@ -35,10 +37,13 @@ type ExportStats struct {
 }
 
 // DownloadHistory manages the download state and statistics.
+// All methods are safe for concurrent use.
 type DownloadHistory struct {
+	mu    sync.RWMutex
 	items map[string]DownloadItem
 	path  string
 
+	// Counters are already thread-safe using atomic operations
 	DownloadCount counter
 	SkippedCount  counter
 	IgnoredCount  counter
@@ -53,7 +58,11 @@ var ErrHistoryInvalidStatus = fmt.Errorf("download history item status is invali
 
 // MarkSkipped sets the status of an existing item to 'skipped'.
 // Returns an error if the item does not exist or if the item's status is not 'loaded'.
+// This method is safe for concurrent use.
 func (d *DownloadHistory) MarkSkipped(location string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	item, ok := d.items[location]
 	if !ok {
 		return ErrHistoryItemNotFound
@@ -68,7 +77,11 @@ func (d *DownloadHistory) MarkSkipped(location string) error {
 
 // SetDownloaded adds a new item with status 'downloaded' if it does not exist, or updates an existing item
 // to 'downloaded' if its current status is 'loaded'. Returns an error if the item exists and its status is not 'loaded'.
+// This method is safe for concurrent use.
 func (d *DownloadHistory) SetDownloaded(location string, item DownloadItem) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	existing, ok := d.items[location]
 	if ok {
 		if existing.DownloadStatus != StatusLoaded {
@@ -93,9 +106,11 @@ func (d *DownloadHistory) GetStats() ExportStats {
 	}
 }
 
-// GetItem looks up a DownloadItem by its key.
+// GetItem looks up a DownloadItem by its key in a thread-safe manner.
 // It returns the item and true if found, or false if not found.
 func (d *DownloadHistory) GetItem(key string) (DownloadItem, bool) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	item, exists := d.items[key]
 	return item, exists
 }
@@ -171,69 +186,104 @@ func (hdr *jsonHeader) validate() error {
 	return nil
 }
 
-// loadFromReader loads DownloadItems from JSON and sets Status to "loaded" if not present.
-// loadFromReader is a private helper that loads DownloadItems from JSON and sets Status to "loaded" if not present.
-func (d *DownloadHistory) loadFromReader(r io.Reader) error {
+// loadItemsFromReader loads items from a reader without holding any locks.
+// It returns the loaded items and any error encountered.
+func (d *DownloadHistory) loadItemsFromReader(r io.Reader) (map[string]DownloadItem, error) {
 	content, err := io.ReadAll(r)
 	if err != nil {
-		return fmt.Errorf("file read error: %s", err.Error())
+		return nil, fmt.Errorf("failed to read content: %w", err)
 	}
 
 	var history jsonDownloadHistory
 	if err := json.Unmarshal(content, &history); err != nil {
-		return fmt.Errorf("parse error: %s", err.Error())
+		return nil, fmt.Errorf("failed to decode history: %w", err)
 	}
 
 	if err := history.Header.validate(); err != nil {
-		return err
+		return nil, fmt.Errorf("invalid history header: %w", err)
 	}
 
+	items := make(map[string]DownloadItem, len(history.Items))
 	for _, item := range history.Items {
 		downloadTime, err := time.Parse(time.RFC3339, item.DownloadTime)
 		if err != nil {
-			return fmt.Errorf("failed to parse download time: %s", err.Error())
+			return nil, fmt.Errorf("failed to parse download time: %w", err)
 		}
-		// Prevent duplicate locations in the history map.
-		if _, exists := d.items[item.Location]; exists {
-			return fmt.Errorf("duplicate location: %s", item.Location)
-		}
-		// Set DownloadStatus to StatusLoaded on load to reflect state from file.
-		d.items[item.Location] = DownloadItem{
+
+		di := DownloadItem{
 			FileID:         item.FileID,
 			Hash:           item.Hash,
 			DownloadTime:   downloadTime,
 			DownloadStatus: StatusLoaded,
 		}
+
+		if _, exists := items[item.Location]; exists {
+			return nil, fmt.Errorf("duplicate location: %s", item.Location)
+		}
+
+		items[item.Location] = di
 	}
 
+	return items, nil
+}
+
+// loadFromReader loads DownloadItems from JSON and updates the internal state.
+// It holds the lock only when updating the internal state.
+func (d *DownloadHistory) loadFromReader(r io.Reader) error {
+	items, err := d.loadItemsFromReader(r)
+	if err != nil {
+		return err
+	}
+
+	d.mu.Lock()
+	d.items = items
+	d.mu.Unlock()
 	return nil
 }
 
-// Load reads download history from the JSON file specified.
+// Load reads download history from the JSON file specified during initialization.
 // It returns an error if the file cannot be opened or contains invalid data.
+// This method is safe for concurrent use.
 func (d *DownloadHistory) Load() error {
-	// If the file does not exist, treat as no history (not an error).
+	// First check if file exists without holding the lock
 	if _, err := os.Stat(d.path); os.IsNotExist(err) {
+		d.mu.Lock()
+		d.items = make(map[string]DownloadItem)
+		d.mu.Unlock()
 		return nil
 	}
 
 	file, err := os.Open(d.path)
 	if err != nil {
-		return fmt.Errorf("file read error: %s", err.Error())
+		return fmt.Errorf("file read error: %w", err)
 	}
 	defer file.Close()
+
 	return d.loadFromReader(file)
 }
 
-// saveToWriter writes DownloadItems to JSON.
-// saveToWriter is a private helper that writes DownloadItems to JSON.
-func (d *DownloadHistory) saveToWriter(w io.Writer) error {
-	header := jsonHeader{
-		Version: HISTORY_VERSION,
-		Magic:   HISTORY_MAGIC,
-		Created: time.Now().Format(time.RFC3339),
+// Save writes the download history to the JSON file specified during initialization.
+// It returns an error if the file cannot be created or written to.
+// This method is safe for concurrent use.
+func (d *DownloadHistory) Save() error {
+	dir := filepath.Dir(d.path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("file write error: %w", err)
 	}
 
+	file, err := os.Create(d.path)
+	if err != nil {
+		return fmt.Errorf("file write error: %w", err)
+	}
+	defer file.Close()
+
+	return d.saveToWriter(file)
+}
+
+// saveToWriter writes the download history to the provided writer in JSON format.
+// This method is safe for concurrent use.
+func (d *DownloadHistory) saveToWriter(w io.Writer) error {
+	d.mu.RLock()
 	items := make([]jsonDownloadItem, 0, len(d.items))
 	for location, item := range d.items {
 		items = append(items, jsonDownloadItem{
@@ -243,41 +293,33 @@ func (d *DownloadHistory) saveToWriter(w io.Writer) error {
 			DownloadTime: item.DownloadTime.Format(time.RFC3339),
 		})
 	}
+	d.mu.RUnlock()
 
 	history := jsonDownloadHistory{
-		Header: header,
-		Items:  items,
+		Header: jsonHeader{
+			Version: HISTORY_VERSION,
+			Magic:   HISTORY_MAGIC,
+			Created: time.Now().Format(time.RFC3339),
+		},
+		Items: items,
 	}
 
-	data, err := json.MarshalIndent(history, "", "  ")
-	if err != nil {
-		return fmt.Errorf("file write error: %s", err.Error())
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(history); err != nil {
+		return fmt.Errorf("file write error: %w", err)
 	}
 
-	if _, err := w.Write(data); err != nil {
-		return fmt.Errorf("file write error: %s", err.Error())
-	}
 	return nil
-}
-
-// Save writes the download history to the JSON file specified during initialization.
-// It returns an error if the file cannot be created or written to.
-func (d *DownloadHistory) Save() error {
-	dir := filepath.Dir(d.path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("file write error: %s", err.Error())
-	}
-	file, err := os.Create(d.path)
-	if err != nil {
-		return fmt.Errorf("file write error: %s", err.Error())
-	}
-	defer file.Close()
-	return d.saveToWriter(file)
 }
 
 // GetObsoleteItems returns a slice of file paths that are marked as "loaded" in the history.
 // These represent files that exist in history but were not found in the current export.
+// This method is safe for concurrent use.
 func (d *DownloadHistory) GetObsoleteItems() []string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	var obsolete []string
 	for path, item := range d.items {
 		if item.DownloadStatus == StatusLoaded {
