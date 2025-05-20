@@ -1,8 +1,6 @@
 package logger
 
 import (
-	"flag"
-	"fmt"
 	"os"
 	"strings"
 )
@@ -63,13 +61,20 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-// Usage prints the logger config flag usage and environment variable info.
-func Usage() {
-	fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
-	flag.PrintDefaults()
-	fmt.Fprintln(flag.CommandLine.Output(), "\nEnvironment Variables:")
-	fmt.Fprintln(flag.CommandLine.Output(), "  LOG_LEVEL       Log level (debug, info, warn, error)")
-	fmt.Fprintln(flag.CommandLine.Output(), "  LOG_WEBHOOK_URL Webhook URL for logging")
-	fmt.Fprintln(flag.CommandLine.Output(), "  APP_NAME        Application name")
-	fmt.Fprintln(flag.CommandLine.Output(), "  ENV             Environment (development, staging, production)")
+// EnvVarHelp represents information about an environment variable
+// that can be used for generating help messages.
+type EnvVarHelp struct {
+	Name        string
+	Description string
+}
+
+// GetEnvVarsHelp returns a slice of environment variable help information
+// that the logger package uses.
+func GetEnvVarsHelp() []EnvVarHelp {
+	return []EnvVarHelp{
+		{"LOG_LEVEL", "Log level (debug, info, warn, error)"},
+		{"LOG_WEBHOOK_URL", "Webhook URL for logging"},
+		{"APP_NAME", "Application name"},
+		{"ENV", "Environment (development, staging, production)"},
+	}
 }

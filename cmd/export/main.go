@@ -73,8 +73,38 @@ func init() {
 	}
 }
 
+// printUsage prints the complete usage information including flags and environment variables
+func printUsage() {
+	// Print standard flag usage
+	fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
+	flag.PrintDefaults()
+
+	// Print logger environment variables
+	fmt.Fprintln(flag.CommandLine.Output(), "\nLogger environment variables:")
+	loggerEnvVars := logger.GetEnvVarsHelp()
+	for _, v := range loggerEnvVars {
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-20s %s\n", v.Name, v.Description)
+	}
+
+	// Print Synology NAS environment variables
+	synologyEnvVars := []struct {
+		Name        string
+		Description string
+	}{
+		{"SYNOLOGY_NAS_USER", "Synology NAS username"},
+		{"SYNOLOGY_NAS_PASS", "Synology NAS password"},
+		{"SYNOLOGY_NAS_URL", "Synology NAS URL"},
+		{"SYNOLOGY_DOWNLOAD_DIR", "Directory to save downloaded files (default: current directory)"},
+	}
+
+	fmt.Fprintln(flag.CommandLine.Output(), "\nSynology NAS environment variables:")
+	for _, v := range synologyEnvVars {
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-20s %s\n", v.Name, v.Description)
+	}
+}
+
 func main() {
-	flag.Usage = logger.Usage
+	flag.Usage = printUsage
 
 	// Define command-line flags for Synology connection (not handled by config)
 	userFlag := flag.String("user", "", "Synology NAS username")
