@@ -1,11 +1,13 @@
 package filelock
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestTryLock(t *testing.T) {
@@ -128,5 +130,61 @@ func TestLockInReadOnlyDirectory(t *testing.T) {
 	// Verify no lock file was created
 	if _, err := os.Stat(lockFile + ".lock"); !os.IsNotExist(err) {
 		t.Error("Lock file was created in read-only directory")
+	}
+}
+
+func TestLockFileContent(t *testing.T) {
+	tempDir := t.TempDir()
+	lockFile := filepath.Join(tempDir, "content_test.lock")
+
+	// Acquire lock
+	unlock, err := TryLock(lockFile)
+	if err != nil {
+		t.Fatalf("Failed to acquire lock: %v", err)
+	}
+	defer unlock()
+
+	// Read and verify lock file content
+	info, err := ReadLockInfo(lockFile)
+	if err != nil {
+		t.Fatalf("Failed to read lock info: %v", err)
+	}
+
+	// Verify PID
+	if info.PID != os.Getpid() {
+		t.Errorf("Expected PID %d, got %d", os.Getpid(), info.PID)
+	}
+
+	// Verify timestamp is recent (within 1 second)
+	ts, err := time.Parse(time.RFC3339, info.Timestamp)
+	if err != nil {
+		t.Fatalf("Failed to parse timestamp: %v", err)
+	}
+	if time.Since(ts) > time.Second {
+		t.Errorf("Timestamp %v is too old", ts)
+	}
+
+	// Verify hostname (if available)
+	if hostname, _ := os.Hostname(); hostname != "" && info.Hostname != hostname {
+		t.Errorf("Expected hostname %q, got %q", hostname, info.Hostname)
+	}
+
+	// Verify the file is valid JSON
+	data, err := os.ReadFile(lockFile + ".lock")
+	if err != nil {
+		t.Fatalf("Failed to read lock file: %v", err)
+	}
+
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal(data, &jsonData); err != nil {
+		t.Fatalf("Lock file is not valid JSON: %v", err)
+	}
+
+	// Check required fields
+	requiredFields := []string{"pid", "timestamp"}
+	for _, field := range requiredFields {
+		if _, exists := jsonData[field]; !exists {
+			t.Errorf("Missing required field in lock file: %s", field)
+		}
 	}
 }
