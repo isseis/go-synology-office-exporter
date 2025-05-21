@@ -4,21 +4,26 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 ![Contributions welcome](https://img.shields.io/badge/contributions-welcome-orange.svg)
 
-A command-line tool to export documents from Synology Drive/Office to local files. Written in Go for efficiency, reliability, and easy deployment.
+A command-line tool to export documents from Synology Drive/Office to local files. Written in Go for efficiency, reliability, and easy deployment. This tool allows you to export documents from your Synology Drive, Team Folders, and Shared With Me locations to your local machine.
 
 ## Features
 
-- Export Synology Office documents (Spreadsheet, Document, Slides) to Microsoft Office formats (e.g., xlsx, docx, pptx).
-- Supports Synology Drive API authentication.
-- Download history management to avoid duplicate exports.
-- CLI interface for automation and scripting.
-- Written in Go for cross-platform binaries and performance.
+- Export Synology Office documents (Spreadsheet, Document, Slides) to Microsoft Office formats (e.g., xlsx, docx, pptx)
+- Supports multiple export sources:
+  - Personal Drive (My Drive)
+  - Team Folders
+  - Shared With Me
+- Download history management to avoid duplicate exports
+- Dry run mode to preview changes without downloading
+- Comprehensive logging and error reporting
+- CLI interface for automation and scripting
+- Written in Go for cross-platform binaries and performance
 
 ## Requirements
 
 - Go 1.24+ (for building from source)
 - Synology NAS with Drive/Office enabled
-- API access enabled on Synology NAS
+- Network access to your Synology NAS
 
 ## Installation
 
@@ -31,62 +36,111 @@ Not available yet.
 ```sh
 git clone https://github.com/isseis/go-synology-office-exporter.git
 cd go-synology-office-exporter
-go build -o synology-office-exporter ./cmd/synology-office-exporter
+go build -o synology-office-exporter ./cmd/export
 ```
 
 ## Usage
 
-It is strongly recommended to provide sensitive credentials via environment variables to avoid leaking them in shell history or process lists.
+### Environment Variables (Recommended)
 
-### Environment Variables
-
-Set the following variables before running the tool:
+It's recommended to provide sensitive credentials via environment variables to avoid leaking them in shell history or process lists.
 
 ```sh
-export SYNOLOGY_HOST=<SYNOLOGY_HOST>
-export SYNOLOGY_USERNAME=<USERNAME>
-export SYNOLOGY_PASSWORD=<PASSWORD>
+export SYNOLOGY_NAS_URL=https://your-nas-address:port
+export SYNOLOGY_NAS_USER=your_username
+export SYNOLOGY_NAS_PASS=your_password
+export SYNOLOGY_DOWNLOAD_DIR=./exports  # Optional, defaults to current directory
 ```
 
 Then run:
 
 ```sh
-./synology-office-exporter \
-  --output <OUTPUT_DIR> \
+./synology-office-exporter
 ```
 
-### Command-Line Options (Not Recommended for Credentials)
+### Command-Line Options
 
-You may also provide `--host`, `--username`, and `--password` as command-line options, but this is discouraged for security reasons (these values may be visible to other local users via shell history or process list).
+```
+Usage of synology-office-exporter:
+  -dry_run
+        If set, perform a dry run (no file downloads, only show statistics)
+  -output string
+        Directory to save downloaded files (can be set via env SYNOLOGY_DOWNLOAD_DIR)
+  -pass string
+        Synology NAS password (can be set via env SYNOLOGY_NAS_PASS)
+  -sources string
+        Comma-separated list of sources to export (mydrive,teamfolder,shared) (default "mydrive,teamfolder,shared")
+  -url string
+        Synology NAS URL (can be set via env SYNOLOGY_NAS_URL)
+  -user string
+        Synology NAS username (can be set via env SYNOLOGY_NAS_USER)
+```
 
-## Options
+### Logger Environment Variables
 
-- `--host`         : Synology NAS hostname or IP address (can be set via env `SYNOLOGY_HOST`)
-- `--username`     : Synology account username (can be set via env `SYNOLOGY_USERNAME`)
-- `--password`     : Synology account password (can be set via env `SYNOLOGY_PASSWORD`)
-- `--output`       : Local directory to save exported files (required)
+The tool supports various logging configurations:
 
-## Example
+- `LOG_LEVEL`: Set log level (debug, info, warn, error, fatal, panic, none)
+- `LOG_FORMAT`: Log format (json, console)
+- `LOG_FILE`: Path to log file (if empty, logs to stderr)
+- `LOG_MAX_SIZE`: Maximum size in MB before rotation (default: 100)
+- `LOG_MAX_BACKUPS`: Maximum number of old log files to retain (default: 3)
+- `LOG_MAX_AGE`: Maximum number of days to retain old log files (default: 28)
+- `LOG_COMPRESS`: Whether to compress rotated log files (default: true)
+- `LOG_LOCAL_TIME`: Use local time for log rotation (default: false)
+- `LOG_WEBHOOK_URL`: Webhook URL for sending logs
+- `LOG_WEBHOOK_MIN_LEVEL`: Minimum level for webhook logs (default: error)
+- `LOG_WEBHOOK_TIMEOUT`: Webhook request timeout (default: 10s)
 
-Export all documents:
+## Examples
+
+### Basic Export
+
+Export all documents to the default directory (current directory):
 
 ```sh
-export SYNOLOGY_HOST=192.168.1.10
-export SYNOLOGY_USERNAME=admin
-export SYNOLOGY_PASSWORD=secret
+./synology-office-exporter -url https://your-nas:5001 -user your_username -pass your_password
+```
 
-./synology-office-exporter --output ./exports
+### Export to Specific Directory
+
+```sh
+./synology-office-exporter -output ./synology_exports
+```
+
+### Dry Run (No Downloads)
+
+Preview what would be downloaded without making any changes:
+
+```sh
+./synology-office-exporter -dry_run
+```
+
+### Export Specific Sources
+
+Export only from My Drive and Team Folders:
+
+```sh
+./synology-office-exporter -sources mydrive,teamfolder
 ```
 
 ## Download History
 
-The tool maintains a history file (`mydrive_history.json`, `team_folder_history.json`, `shared_with_me_history.json`) to avoid re-downloading already exported documents. Delete or rename this file to force a full re-export.
+The tool maintains history files to avoid re-downloading already exported documents:
+
+- `mydrive_history.json` - Tracks exported files from My Drive
+- `team_folder_history.json` - Tracks exported files from Team Folders
+- `shared_with_me_history.json` - Tracks exported files from Shared With Me
+
+To force a full re-export, delete or rename the appropriate history file(s).
 
 ## Security
 
-- Credentials are only used for API requests and not stored.
-- Use an application-specific account with minimal permissions.
-- Avoid using your main admin account.
+- Credentials are only used for API requests and are not stored
+- Use an application-specific account with minimal permissions
+- Avoid using your main admin account
+- Consider using environment variables or `.env` files for credentials
+- All API communication is encrypted with HTTPS
 
 ## License
 
