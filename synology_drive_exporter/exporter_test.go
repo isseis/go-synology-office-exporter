@@ -15,6 +15,8 @@ import (
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
+var noDownloadItems = map[string]download_history.DownloadItem{}
+
 // MockFileSystem is a mock implementation of FileSystemOperations for testing.
 type MockFileSystem struct {
 	CreateFileFunc func(string, []byte, os.FileMode, os.FileMode) error
@@ -851,8 +853,7 @@ func TestExporter_Counts(t *testing.T) {
 			},
 		}
 		mockFS := NewMockFileSystem()
-		history, err := download_history.NewDownloadHistory("test_history.json")
-		require.NoError(t, err)
+		history := download_history.NewDownloadHistoryForTest(noDownloadItems)
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      fileID,
@@ -940,8 +941,7 @@ func TestExporter_Counts(t *testing.T) {
 		mockFS.CreateFileFunc = func(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
 			return errors.New("write failed")
 		}
-		history, err := download_history.NewDownloadHistory("test_history.json")
-		require.NoError(t, err)
+		history := download_history.NewDownloadHistoryForTest(noDownloadItems)
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      fileID2,
@@ -966,8 +966,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 			},
 		}
 		mockFS := NewMockFileSystem()
-		history, err := download_history.NewDownloadHistory("test_history.json")
-		require.NoError(t, err)
+		history := download_history.NewDownloadHistoryForTest(noDownloadItems)
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      "file1",
@@ -977,7 +976,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		exporter := NewExporterWithDependencies(session, "", mockFS)
 		exporter.processFile(item, history)
 		// Retrieve the history item by display path.
-		dlItem, exists := history.GetItem(makeLocalFileName(item.DisplayPath))
+		dlItem, exists, err := history.GetItem(makeLocalFileName(item.DisplayPath))
+		require.NoError(t, err, "unexpected error getting item from history")
 		require.True(t, exists, "expected item to exist in history for path: %s", item.DisplayPath)
 		if dlItem.DownloadStatus != download_history.StatusDownloaded {
 			t.Errorf("expected download_history.StatusDownloaded, got %v", dlItem.DownloadStatus)
@@ -1007,7 +1007,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		exporter.processFile(item, history)
 
 		// Inline getHistoryItemByDisplayPath logic (was: dlItem := getHistoryItemByDisplayPath(...))
-		dlItem, exists := history.GetItem(makeLocalFileName(item.DisplayPath))
+		dlItem, exists, err := history.GetItem(makeLocalFileName(item.DisplayPath))
+		require.NoError(t, err, "unexpected error getting item from history")
 		require.True(t, exists, "expected item to exist in history for path: %s", item.DisplayPath)
 		if dlItem.DownloadStatus != download_history.StatusSkipped {
 			t.Errorf("expected download_history.StatusSkipped, got %v", dlItem.DownloadStatus)
@@ -1042,7 +1043,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 
 		// Check item1 status (should be skipped)
 		key1 := makeLocalFileName(item1.DisplayPath)
-		item1Status, exists := history.GetItem(key1)
+		item1Status, exists, err := history.GetItem(key1)
+		require.NoError(t, err, "unexpected error getting item1 from history")
 		if !exists {
 			t.Fatal("expected item1 to exist in history")
 		}
@@ -1052,7 +1054,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 
 		// Check item2 status (should be downloaded)
 		key2 := makeLocalFileName(item2.DisplayPath)
-		item2Status, exists := history.GetItem(key2)
+		item2Status, exists, err := history.GetItem(key2)
+		require.NoError(t, err, "unexpected error getting item2 from history")
 		if !exists {
 			t.Fatal("expected item2 to exist in history")
 		}
@@ -1062,7 +1065,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 
 		// Check item3 status (should remain loaded)
 		key3 := makeLocalFileName(item3.DisplayPath)
-		item3Status, exists := history.GetItem(key3)
+		item3Status, exists, err := history.GetItem(key3)
+		require.NoError(t, err, "unexpected error getting item3 from history")
 		if !exists {
 			t.Fatal("expected item3 to exist in history")
 		}
@@ -1096,7 +1100,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		},
 		{
 			name:        "download if not in history",
-			history:     map[string]download_history.DownloadItem{},
+			history:     noDownloadItems,
 			itemHash:    fileHashNew,
 			expectWrite: true,
 		},
@@ -1132,7 +1136,8 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 			// Verify the item exists in history if we expected a write
 			if tc.expectWrite {
 				key := makeLocalFileName(displayPath)
-				_, exists := history.GetItem(key)
+				_, exists, err := history.GetItem(key)
+				require.NoError(t, err, "unexpected error checking if item exists in history")
 				if !exists {
 					t.Error("expected item to exist in history after processing")
 				}
