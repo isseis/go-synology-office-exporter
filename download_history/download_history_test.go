@@ -51,7 +51,7 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 		assert.Equal(t, StatusSkipped, h.items["file1"].DownloadStatus)
 	})
 	t.Run("MarkSkipped - not found", func(t *testing.T) {
-		h, _ := NewDownloadHistory("dummy.json")
+		h := NewDownloadHistoryForTest(map[string]DownloadItem{})
 		err := h.MarkSkipped("notfound")
 		assert.ErrorIs(t, err, ErrHistoryItemNotFound)
 	})
@@ -76,9 +76,8 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 		assert.Equal(t, baseTime.Add(time.Hour), h.items["file2"].DownloadTime)
 	})
 	t.Run("SetDownloaded - add new", func(t *testing.T) {
-		h, _ := NewDownloadHistory("dummy.json")
+		h := NewDownloadHistoryForTest(map[string]DownloadItem{})
 		item := itemLoaded
-		item.DownloadStatus = StatusLoaded
 		err := h.SetDownloaded("file3", item)
 		assert.NoError(t, err)
 		assert.Equal(t, StatusDownloaded, h.items["file3"].DownloadStatus)
@@ -327,25 +326,26 @@ func TestLoad(t *testing.T) {
 
 // TestSaveToWriter tests SaveToWriter for successful and error cases, including output validation and error propagation.
 func TestSaveToWriter(t *testing.T) {
-	// Create a history instance with test data for testing
-	history := NewDownloadHistoryForTest(map[string]DownloadItem{
+	items := map[string]DownloadItem{
 		"/path/to/file1.odoc": {
-			FileID:       "882614125167948399",
-			Hash:         "1234567890abcdef",
-			DownloadTime: time.Date(2023, 10, 1, 12, 45, 23, 0, time.UTC),
+			FileID:         "882614125167948399",
+			Hash:           "1234567890abcdef",
+			DownloadTime:   time.Date(2023, 10, 1, 12, 45, 23, 0, time.UTC),
+			DownloadStatus: StatusDownloaded,
 		},
 		"/path/to/file2.odoc": {
-			FileID:       "882614125167948400",
-			Hash:         "abcdef1234567890",
-			DownloadTime: time.Date(2023, 10, 2, 8, 17, 39, 0, time.UTC),
+			FileID:         "882614125167948400",
+			Hash:           "abcdef1234567890",
+			DownloadTime:   time.Date(2023, 10, 2, 8, 17, 39, 0, time.UTC),
+			DownloadStatus: StatusDownloaded,
 		},
-	})
+	}
 
 	// Test successful case
 	t.Run("Successful write", func(t *testing.T) {
 		var buf strings.Builder
-		// Use test-only API for saving to custom writer
-		err := history.saveToWriter(&buf)
+		// Save to custom writer using the package function
+		err := saveToWriter(&buf, items)
 		assert.Nil(t, err)
 
 		// Verify the output contains expected data
@@ -386,8 +386,8 @@ func TestSaveToWriter(t *testing.T) {
 	t.Run("Writer error", func(t *testing.T) {
 		// Create a mock writer that returns an error on Write
 		errorWriter := &mockErrorWriter{}
-		// Use test-only API for saving to custom writer
-		err := history.saveToWriter(errorWriter)
+		// Save to custom writer that returns an error
+		err := saveToWriter(errorWriter, items)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "file write error")
 	})
@@ -401,16 +401,23 @@ func TestSave(t *testing.T) {
 		jsonPath := filepath.Join(tempDir, "history.json")
 
 		// Create a history instance with test data
-		history := NewDownloadHistoryForTest(map[string]DownloadItem{
-			"/path/to/file.odoc": {
-				FileID:       "882614125167948399",
-				Hash:         "1234567890abcdef",
-				DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
-			},
-		})
-		history.path = jsonPath // Set the path to the test JSON file
+		history, err := NewDownloadHistory(jsonPath)
+		require.NoError(t, err)
 
-		err := history.Save()
+		err = history.Load()
+		require.NoError(t, err)
+
+		// Add test data after Load()
+		if history.items == nil {
+			history.items = make(map[string]DownloadItem)
+		}
+		history.items["/path/to/file.odoc"] = DownloadItem{
+			FileID:       "882614125167948399",
+			Hash:         "1234567890abcdef",
+			DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
+		}
+
+		err = history.Save()
 		assert.Nil(t, err)
 
 		// Verify the file was created
@@ -435,15 +442,23 @@ func TestSave(t *testing.T) {
 	// Test case when file creation fails
 	t.Run("File creation error", func(t *testing.T) {
 		// Create history with test data for non-existent directory
-		history := NewDownloadHistoryForTest(map[string]DownloadItem{
-			"/path/to/file.odoc": {
-				FileID:       "882614125167948399",
-				Hash:         "1234567890abcdef",
-				DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
-			},
-		})
-		history.path = "/non-existent-dir/history.json" // Override path after creation
-		err := history.Save()
+		history, err := NewDownloadHistory("/non-existent-dir/history.json")
+		require.NoError(t, err)
+
+		err = history.Load()
+		require.NoError(t, err)
+
+		// Add test data after Load()
+		if history.items == nil {
+			history.items = make(map[string]DownloadItem)
+		}
+		history.items["/path/to/file.odoc"] = DownloadItem{
+			FileID:       "882614125167948399",
+			Hash:         "1234567890abcdef",
+			DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
+		}
+
+		err = history.Save()
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "file write error")
 	})
@@ -460,14 +475,20 @@ func TestSave(t *testing.T) {
 		assert.Nil(t, err)
 
 		jsonPath := filepath.Join(readOnlyDir, "history.json")
-		history := NewDownloadHistoryForTest(map[string]DownloadItem{
+		history, err := NewDownloadHistory(jsonPath)
+		require.NoError(t, err)
+		err = history.Load()
+		require.NoError(t, err)
+
+		// Add test data after Load()
+		history.items = map[string]DownloadItem{
 			"/path/to/file.odoc": {
 				FileID:       "882614125167948399",
 				Hash:         "1234567890abcdef",
 				DownloadTime: time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
 			},
-		})
-		history.path = jsonPath // Set the path after creation
+		}
+
 		err = history.Save()
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "file write error")

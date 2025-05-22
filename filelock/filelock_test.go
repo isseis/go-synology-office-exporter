@@ -65,8 +65,8 @@ func TestConcurrentLocks(t *testing.T) {
 
 	// Channel to coordinate goroutines
 	firstLockAcquired := make(chan struct{})
-	secondTryStarted := make(chan struct{})
-	errCh := make(chan error, 1)
+	testComplete := make(chan struct{})
+	errCh := make(chan error, 2) // Buffer for both possible errors
 
 	// First goroutine - acquires the lock
 	go func() {
@@ -80,25 +80,35 @@ func TestConcurrentLocks(t *testing.T) {
 		// Signal that first lock is acquired
 		close(firstLockAcquired)
 
-		// Wait for second goroutine to try acquiring the lock
-		<-secondTryStarted
+		// Wait for test to complete
+		<-testComplete
 	}()
 
 	// Second goroutine - tries to acquire the same lock
 	go func() {
 		// Wait for first goroutine to acquire the lock
 		<-firstLockAcquired
-		close(secondTryStarted)
 
 		// Try to acquire the lock - this should fail
 		_, err := TryLock(lockFile)
 		errCh <- err
+
+		// Signal test completion
+		close(testComplete)
 	}()
 
 	// Check results
 	err := <-errCh
 	if err != ErrLockHeld {
-		t.Errorf("Expected ErrLockHeld, got %v", err)
+		t.Fatalf("Expected ErrLockHeld, got %v", err)
+	}
+
+	// Ensure we don't have any unexpected errors
+	select {
+	case err := <-errCh:
+		t.Fatalf("Unexpected error from goroutines: %v", err)
+	default:
+		// No more errors, test passed
 	}
 }
 
