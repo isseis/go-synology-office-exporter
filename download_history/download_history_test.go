@@ -488,6 +488,92 @@ func TestSave(t *testing.T) {
 	})
 }
 
+func TestGetObsoleteItems(t *testing.T) {
+	baseTime := time.Now().Truncate(time.Second)
+	item1 := DownloadItem{
+		FileID:         "id1",
+		Hash:           "hash1",
+		DownloadTime:   baseTime,
+		DownloadStatus: StatusLoaded,
+	}
+	item2 := DownloadItem{
+		FileID:         "id2",
+		Hash:           "hash2",
+		DownloadTime:   baseTime,
+		DownloadStatus: StatusLoaded,
+	}
+	item3 := DownloadItem{
+		FileID:         "id3",
+		Hash:           "hash3",
+		DownloadTime:   baseTime,
+		DownloadStatus: StatusLoaded,
+	}
+
+	t.Run("returns error when not saved", func(t *testing.T) {
+		h := NewDownloadHistoryForTest(map[string]DownloadItem{
+			"file1": item1,
+			"file2": item2,
+		})
+
+		// Should fail before Save() is called
+		items, err := h.GetObsoleteItems()
+		assert.ErrorIs(t, err, ErrNotReady)
+		assert.Nil(t, items)
+	})
+
+	t.Run("returns unprocessed items after save", func(t *testing.T) {
+		h := NewDownloadHistoryForTest(map[string]DownloadItem{
+			"file1": item1,
+			"file2": item2,
+			"file3": item3,
+		})
+
+		// Process some items
+		require.NoError(t, h.MarkSkipped("file1"))
+		require.NoError(t, h.SetDownloaded("file2", DownloadItem{
+			FileID:         "id2",
+			Hash:           "hash2_updated",
+			DownloadTime:   baseTime.Add(time.Hour),
+			DownloadStatus: StatusDownloaded,
+		}))
+
+		// Save to move to stateSaved
+		err := h.Save()
+		require.NoError(t, err)
+
+		// Get obsolete items (file3 was not processed)
+		items, err := h.GetObsoleteItems()
+		require.NoError(t, err)
+		require.Len(t, items, 1)
+		assert.Equal(t, "file3", items[0])
+	})
+
+	t.Run("returns empty slice when all items are processed", func(t *testing.T) {
+		h := NewDownloadHistoryForTest(map[string]DownloadItem{
+			"file1": item1,
+			"file2": item2,
+		})
+
+		// Process all items
+		require.NoError(t, h.MarkSkipped("file1"))
+		require.NoError(t, h.SetDownloaded("file2", DownloadItem{
+			FileID:         "id2",
+			Hash:           "hash2_updated",
+			DownloadTime:   baseTime.Add(time.Hour),
+			DownloadStatus: StatusDownloaded,
+		}))
+
+		// Save to move to stateSaved
+		err := h.Save()
+		require.NoError(t, err)
+
+		// Should return empty slice when no obsolete items
+		items, err := h.GetObsoleteItems()
+		require.NoError(t, err)
+		assert.Empty(t, items)
+	})
+}
+
 // mockErrorWriter is a test helper that implements io.Writer and always returns an error on Write.
 type mockErrorWriter struct{}
 

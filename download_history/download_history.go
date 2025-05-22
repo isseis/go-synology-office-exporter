@@ -26,7 +26,7 @@ const (
 	stateNew state = iota
 	stateLoading
 	stateReady
-	stateClosed
+	stateSaved
 )
 
 var (
@@ -324,8 +324,8 @@ func (d *DownloadHistory) Load() error {
 // is not in the ready state.
 // This method is safe for concurrent use.
 func (d *DownloadHistory) Save() error {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	if d.state != stateReady {
 		return ErrNotReady
@@ -352,7 +352,7 @@ func (d *DownloadHistory) Save() error {
 		os.Remove(d.path)
 		return err
 	}
-
+	d.state = stateSaved
 	return nil
 }
 
@@ -396,7 +396,7 @@ func (d *DownloadHistory) GetObsoleteItems() ([]string, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	if d.state != stateReady {
+	if d.state != stateSaved {
 		return nil, ErrNotReady
 	}
 

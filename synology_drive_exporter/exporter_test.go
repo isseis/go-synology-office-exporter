@@ -705,6 +705,11 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 			dryRun: false,
 		}
 
+		// Save the history to transition to stateSaved state
+		if err := history.Save(); err != nil {
+			t.Fatalf("Failed to save history: %v", err)
+		}
+
 		stats := &ExportStats{}
 		e.cleanupObsoleteFiles(history, stats)
 
@@ -756,6 +761,11 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 		e := &Exporter{
 			fs:     NewMockFileSystem(),
 			dryRun: true, // Enable dry run
+		}
+
+		// Save the history to transition to stateSaved state
+		if err := history.Save(); err != nil {
+			t.Fatalf("Failed to save history: %v", err)
 		}
 
 		stats := &ExportStats{}
