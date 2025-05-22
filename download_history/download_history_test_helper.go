@@ -11,6 +11,7 @@ func NewDownloadHistoryForTest(items map[string]DownloadItem) *DownloadHistory {
 	dh := &DownloadHistory{
 		items:         items,
 		path:          "test-history.json",
+		state:         stateReady, // Set to ready state for testing
 		DownloadCount: counter{},
 		SkippedCount:  counter{},
 		IgnoredCount:  counter{},

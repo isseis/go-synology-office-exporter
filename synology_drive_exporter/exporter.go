@@ -202,18 +202,25 @@ func (e *Exporter) exportItemsWithHistory(
 		return ExportStats{}, &DownloadHistoryOperationError{Op: "create", Err: err}
 	}
 	if err := history.Load(); err != nil {
-		return toExportStats(history.GetStats()), &DownloadHistoryOperationError{Op: "load", Err: err}
+		return ExportStats{}, &DownloadHistoryOperationError{Op: "load", Err: err}
 	}
 	for _, item := range items {
 		e.processItem(item, history)
 	}
+
+	var dlStats download_history.ExportStats
+	if dlStats, err = history.GetStats(); err != nil {
+		return ExportStats{}, &DownloadHistoryOperationError{Op: "get stats", Err: err}
+	}
+	exStats := toExportStats(dlStats)
 	if err := history.Save(); err != nil {
-		return toExportStats(history.GetStats()), &DownloadHistoryOperationError{Op: "save", Err: err}
+		return exStats, &DownloadHistoryOperationError{Op: "save", Err: err}
 	}
 
-	stats := toExportStats(history.GetStats())
-	e.cleanupObsoleteFiles(history, &stats)
-	return stats, nil
+	if err := e.cleanupObsoleteFiles(history, &exStats); err != nil {
+		return exStats, &DownloadHistoryOperationError{Op: "cleanup obsolete files", Err: err}
+	}
+	return exStats, nil
 }
 
 // ExportRootsWithHistory exports multiple root directories with download history management.
@@ -259,7 +266,13 @@ func (e *Exporter) processFile(item ExportItem, history *download_history.Downlo
 	}
 
 	localPath := makeLocalFileName(item.DisplayPath)
-	if prev, downloaded := history.GetItem(localPath); downloaded && prev.Hash == item.Hash {
+	prev, downloaded, err := history.GetItem(localPath)
+	if err != nil {
+		fmt.Printf("Error checking history for %s: %v\n", localPath, err)
+		history.ErrorCount.Increment()
+		return
+	}
+	if downloaded && prev.Hash == item.Hash {
 		fmt.Printf("[DEBUG] hash skip: localPath=%s, prev.Hash=%s, item.Hash=%s, prev.DownloadStatus=%s\n", localPath, prev.Hash, item.Hash, prev.DownloadStatus)
 
 		fmt.Printf("Skip (already exported and hash unchanged): %s\n", localPath)
@@ -368,13 +381,17 @@ func (e *Exporter) removeFile(path string) error {
 
 // cleanupObsoleteFiles removes files that exist in history but not in the current export
 // It skips cleanup if there were any errors during the export process
-func (e *Exporter) cleanupObsoleteFiles(history *download_history.DownloadHistory, stats *ExportStats) {
+func (e *Exporter) cleanupObsoleteFiles(history *download_history.DownloadHistory, stats *ExportStats) error {
 	if stats.TotalErrs() > 0 {
 		log.Println("Skipping cleanup due to previous errors")
-		return
+		return nil
 	}
 
-	obsoletePaths := history.GetObsoleteItems()
+	obsoletePaths, err := history.GetObsoleteItems()
+	if err != nil {
+		log.Printf("Error getting obsolete items: %v", err)
+		return err
+	}
 	for _, path := range obsoletePaths {
 		if err := e.removeFile(path); err != nil {
 			stats.IncrementRemoveErrs() // Always count errors
@@ -383,4 +400,5 @@ func (e *Exporter) cleanupObsoleteFiles(history *download_history.DownloadHistor
 			stats.IncrementRemoved() // Always count successful removals
 		}
 	}
+	return nil
 }

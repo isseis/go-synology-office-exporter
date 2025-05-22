@@ -5,7 +5,7 @@ GO_BUILD := go build
 GO_TEST := go test
 
 # Declare phony targets that don't produce files
-.PHONY: build test clean run pre-commit
+.PHONY: build test test-unit test-full test-race clean run pre-commit
 
 # Build the export command
 build:
@@ -24,8 +24,12 @@ test-unit:
 test-integration:
 	$(GO_TEST) -tags=integration -count=1 ./synology_drive_api/...
 
-# Run all tests (unit + integration)
-test-full: test-unit test-integration
+# Run race tests (to find race conditions)
+test-race:
+	$(GO_TEST) -race -v -timeout=5s ./download_history/...
+
+# Run all tests (unit + integration + race)
+test-full: test-unit test-integration test-race
 
 # Clean up automatically generated files
 clean:
