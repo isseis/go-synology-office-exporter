@@ -132,9 +132,6 @@ func TestNewDownloadHistory(t *testing.T) {
 	})
 }
 func TestLoadFromReader(t *testing.T) {
-	history, err := NewDownloadHistory("dummy.json")
-	require.NoError(t, err)
-
 	json := `{
 		"header": {
 			"version": 2,
@@ -150,12 +147,12 @@ func TestLoadFromReader(t *testing.T) {
 			}
 		]
 	}`
-	// Use test-only API for loading from custom reader
-	err = history.loadFromReader(strings.NewReader(json))
+
+	items, err := loadItemsFromReader(strings.NewReader(json))
 	require.NoError(t, err)
 
-	item := history.items["/path/to/file.odoc"]
-	require.NotNil(t, item)
+	item, exists := items["/path/to/file.odoc"]
+	require.True(t, exists, "Expected item not found")
 	assert.Equal(t, "882614125167948399", string(item.FileID))
 	assert.Equal(t, "1234567890abcdef", string(item.Hash))
 	assert.Equal(t, time.Date(2023, 10, 1, 12, 34, 56, 0, time.UTC), item.DownloadTime)
@@ -177,8 +174,8 @@ func TestLoadFromReader(t *testing.T) {
 				}
 			]
 		` // Missing closing bracket
-		// Use test-only API for loading from custom reader
-		err = history.loadFromReader(strings.NewReader(invalidJSON))
+
+		_, err := loadItemsFromReader(strings.NewReader(invalidJSON))
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "unexpected end of JSON input")
 	})
@@ -193,8 +190,8 @@ func TestLoadFromReader(t *testing.T) {
 			},
 			"items": []
 		}`
-		// Use test-only API for loading from custom reader
-		err = history.loadFromReader(strings.NewReader(invalidVersionJSON))
+
+		_, err := loadItemsFromReader(strings.NewReader(invalidVersionJSON))
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "unsupported version: 1")
 	})
@@ -209,8 +206,8 @@ func TestLoadFromReader(t *testing.T) {
 			},
 			"items": []
 		}`
-		// Use test-only API for loading from custom reader
-		err = history.loadFromReader(strings.NewReader(invalidMagicJSON))
+
+		_, err := loadItemsFromReader(strings.NewReader(invalidMagicJSON))
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "invalid magic: WRONG_MAGIC_STRING")
 	})
@@ -232,8 +229,8 @@ func TestLoadFromReader(t *testing.T) {
 				}
 			]
 		}`
-		// Use test-only API for loading from custom reader
-		err = history.loadFromReader(strings.NewReader(invalidDateJSON))
+
+		_, err := loadItemsFromReader(strings.NewReader(invalidDateJSON))
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "failed to parse download time")
 	})
@@ -261,8 +258,8 @@ func TestLoadFromReader(t *testing.T) {
 				}
 			]
 		}`
-		// Use test-only API for loading from custom reader
-		err = history.loadFromReader(strings.NewReader(duplicateLocationJSON))
+
+		_, err := loadItemsFromReader(strings.NewReader(duplicateLocationJSON))
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "duplicate location")
 	})
@@ -362,21 +359,17 @@ func TestSaveToWriter(t *testing.T) {
 		assert.Contains(t, output, "2023-10-02T08:17:39Z")
 
 		// Parse the saved data to ensure it's valid
-		loadedHistory, err := NewDownloadHistory("dummy.json")
-		require.NoError(t, err)
-
-		// Use test-only API for loading from custom reader
-		err = loadedHistory.loadFromReader(strings.NewReader(output))
+		loadedItems, err := loadItemsFromReader(strings.NewReader(output))
 		assert.Nil(t, err)
-		assert.Len(t, loadedHistory.items, 2)
+		assert.Len(t, loadedItems, 2)
 
 		// Verify timestamps with non-zero minutes and seconds are preserved
-		file1, exists := loadedHistory.items["/path/to/file1.odoc"]
+		file1, exists := loadedItems["/path/to/file1.odoc"]
 		assert.True(t, exists)
 		assert.Equal(t, 45, file1.DownloadTime.Minute())
 		assert.Equal(t, 23, file1.DownloadTime.Second())
 
-		file2, exists := loadedHistory.items["/path/to/file2.odoc"]
+		file2, exists := loadedItems["/path/to/file2.odoc"]
 		assert.True(t, exists)
 		assert.Equal(t, 17, file2.DownloadTime.Minute())
 		assert.Equal(t, 39, file2.DownloadTime.Second())

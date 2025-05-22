@@ -278,20 +278,6 @@ func loadItemsFromReader(r io.Reader) (map[string]DownloadItem, error) {
 	return items, nil
 }
 
-// loadFromReader loads DownloadItems from JSON and updates the internal state.
-// It holds the lock only when updating the internal state.
-func (d *DownloadHistory) loadFromReader(r io.Reader) error {
-	items, err := loadItemsFromReader(r)
-	if err != nil {
-		return err
-	}
-
-	d.mu.Lock()
-	d.items = items
-	d.mu.Unlock()
-	return nil
-}
-
 // Load reads download history from the JSON file specified during initialization.
 // It returns an error if the file cannot be opened, contains invalid data,
 // or if Load() has already been called.
