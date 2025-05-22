@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"sync"
@@ -325,36 +326,30 @@ func (d *DownloadHistory) Load() error {
 // This method is safe for concurrent use.
 func (d *DownloadHistory) Save() error {
 	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	if d.state != stateReady {
-		d.mu.RUnlock()
 		return ErrNotReady
 	}
 
 	dir := filepath.Dir(d.path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		d.mu.RUnlock()
 		return fmt.Errorf("file write error: %w", err)
 	}
 
 	file, err := os.Create(d.path)
 	if err != nil {
-		d.mu.RUnlock()
 		return fmt.Errorf("file write error: %w", err)
 	}
+	defer file.Close()
 
 	// Copy the items we want to save while holding the read lock
 	items := make(map[string]DownloadItem, len(d.items))
-	for k, v := range d.items {
-		items[k] = v
-	}
-	d.mu.RUnlock()
+	maps.Copy(items, d.items)
 
-	// Now save the items without holding any locks
-	err = saveToWriter(file, items)
-	file.Close()
-
-	if err != nil {
+	if err := saveToWriter(file, items); err != nil {
 		// Try to clean up the file if there was an error
+		file.Close()
 		os.Remove(d.path)
 		return err
 	}
