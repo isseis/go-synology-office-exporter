@@ -305,11 +305,10 @@ func (d *DownloadHistory) Load() error {
 		d.state = stateNew // Reset state on error
 		return fmt.Errorf("file read error: %w", err)
 	}
+	defer file.Close()
 
 	// Load items in a separate function to ensure file is closed
 	items, err := loadItemsFromReader(file)
-	file.Close()
-
 	if err != nil {
 		d.state = stateNew // Reset state on error
 		return err
