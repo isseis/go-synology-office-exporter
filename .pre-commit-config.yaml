@@ -18,3 +18,4 @@ repos:
         exclude: ^(download_history/download_history_test_helper\.go)$
       - id: golangci-lint
       - id: go-unit-tests
+        args: [ -tags, test ]

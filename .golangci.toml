@@ -1,5 +1,8 @@
 version = '2'
 
+[run]
+build-tags = ["test"]
+
 [linters]
 [linters.exclusions]
 generated = 'lax'
