@@ -170,7 +170,7 @@ func TestConcurrentSave(t *testing.T) {
 	var wg sync.WaitGroup
 	const numSavers = 5
 	var saveCount int32
-	for range numSavers {
+	for i := 0; i < numSavers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
