@@ -58,7 +58,7 @@ func TestConcurrentReadWriteMix(t *testing.T) {
 	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{})
 	defer dh.Close()
 	var wg sync.WaitGroup
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
