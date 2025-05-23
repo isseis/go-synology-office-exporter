@@ -22,7 +22,7 @@ func TestConcurrentReadAccess(t *testing.T) {
 	defer dh.Close()
 	var wg sync.WaitGroup
 	readers := 10
-	for i := range readers {
+	for i := 0; i < readers; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
