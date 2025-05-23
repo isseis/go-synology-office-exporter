@@ -234,7 +234,7 @@ func TestConcurrentGetObsoleteItems(t *testing.T) {
 
 	// Set 10 items
 	items := map[string]DownloadItem{}
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		fileID := synd.FileID(strconv.Itoa(i))
 		hash := synd.FileHash("hash" + string(rune('A'+i)))
 		item := DownloadItem{
