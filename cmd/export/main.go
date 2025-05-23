@@ -77,7 +77,11 @@ func init() {
 func printUsage() {
 	// Print standard flag usage
 	fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
-	flag.PrintDefaults()
+	fmt.Fprintf(flag.CommandLine.Output(), "Flags:\n")
+	flag.VisitAll(func(f *flag.Flag) {
+		fmt.Fprintf(flag.CommandLine.Output(), "  -%s\n    \t%s\n", f.Name, f.Usage)
+	})
+	fmt.Fprintln(flag.CommandLine.Output())
 
 	// Print logger environment variables
 	fmt.Fprintln(flag.CommandLine.Output(), "\nLogger environment variables:")
@@ -113,6 +117,7 @@ func main() {
 	downloadDirFlag := flag.String("output", "", "Directory to save downloaded files")
 	sourcesFlag := flag.String("sources", "mydrive,teamfolder,shared", "Comma-separated list of sources to export (mydrive,teamfolder,shared)")
 	dryRunFlag := flag.Bool("dry_run", false, "If set, perform a dry run (no file downloads, only show statistics)")
+	forceDownloadFlag := flag.Bool("force-download", false, "If set, re-download files even if they exist and have matching hashes")
 
 	// Parse all flags
 	flag.Parse()
@@ -178,7 +183,10 @@ func main() {
 	}
 
 	log.Info("Synology Office Exporter started", "version", Version)
-	exporter, err := syndexp.NewExporter(user, pass, url, downloadDir, syndexp.WithDryRun(*dryRunFlag))
+	exporter, err := syndexp.NewExporter(user, pass, url, downloadDir,
+		syndexp.WithDryRun(*dryRunFlag),
+		syndexp.WithForceDownload(*forceDownloadFlag),
+	)
 	if err != nil {
 		log.Error("Failed to create exporter", "error", err)
 		os.Exit(1)

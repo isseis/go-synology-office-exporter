@@ -82,6 +82,10 @@ type Exporter struct {
 	// dryRun controls whether file operations are performed. Immutable after construction.
 	// Default is false.
 	dryRun bool
+
+	// forceDownload controls whether to re-download files even if they exist and have matching hashes.
+	// Default is false.
+	forceDownload bool
 }
 
 // ExporterOption defines a function type to set options for Exporter.
@@ -92,6 +96,14 @@ type ExporterOption func(*Exporter)
 func WithDryRun(dryRun bool) ExporterOption {
 	return func(e *Exporter) {
 		e.dryRun = dryRun
+	}
+}
+
+// WithForceDownload sets the forceDownload option for Exporter.
+// When true, files will be re-downloaded even if they exist and have matching hashes.
+func WithForceDownload(force bool) ExporterOption {
+	return func(e *Exporter) {
+		e.forceDownload = force
 	}
 }
 
@@ -255,8 +267,8 @@ func (e *Exporter) processDirectory(item ExportItem, history *download_history.D
 }
 
 // processFile exports a single convertible file and updates download history. Handles export, skip, and error logic.
-// processFile exports a single convertible file and updates download history. Handles export, skip, and error logic.
 // In dry-run mode, no file operations are performed; only statistics are updated.
+// If forceDownload is true, files will be re-downloaded even if they exist and have matching hashes.
 func (e *Exporter) processFile(item ExportItem, history *download_history.DownloadHistory) {
 	exportName := synd.GetExportFileName(item.DisplayPath)
 	if exportName == "" {
@@ -266,15 +278,18 @@ func (e *Exporter) processFile(item ExportItem, history *download_history.Downlo
 	}
 
 	localPath := makeLocalFileName(item.DisplayPath)
+
+	// Check if we should skip based on hash and forceDownload flag
 	prev, downloaded, err := history.GetItem(localPath)
 	if err != nil {
 		fmt.Printf("Error checking history for %s: %v\n", localPath, err)
 		history.ErrorCount.Increment()
 		return
 	}
-	if downloaded && prev.Hash == item.Hash {
-		fmt.Printf("[DEBUG] hash skip: localPath=%s, prev.Hash=%s, item.Hash=%s, prev.DownloadStatus=%s\n", localPath, prev.Hash, item.Hash, prev.DownloadStatus)
 
+	// Skip if file exists, hashes match, and we're not forcing a re-download
+	if !e.forceDownload && downloaded && prev.Hash == item.Hash {
+		fmt.Printf("[DEBUG] hash skip: localPath=%s, prev.Hash=%s, item.Hash=%s, prev.DownloadStatus=%s\n", localPath, prev.Hash, item.Hash, prev.DownloadStatus)
 		fmt.Printf("Skip (already exported and hash unchanged): %s\n", localPath)
 		history.SkippedCount.Increment()
 		err := history.MarkSkipped(localPath)
@@ -282,6 +297,11 @@ func (e *Exporter) processFile(item ExportItem, history *download_history.Downlo
 			fmt.Printf("Warning: could not mark as skipped: %v\n", err)
 		}
 		return
+	}
+
+	// If we're forcing a download and the file exists, log that we're re-downloading
+	if e.forceDownload && downloaded {
+		fmt.Printf("Re-downloading (--force-download): %s\n", localPath)
 	}
 	if e.IsDryRun() {
 		fmt.Printf("[DRY RUN] Would export file: %s\n", exportName)
