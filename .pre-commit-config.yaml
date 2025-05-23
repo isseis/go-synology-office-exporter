@@ -17,5 +17,12 @@ repos:
       - id: no-go-testing
         exclude: ^(download_history/download_history_test_helper\.go)$
       - id: golangci-lint
-      - id: go-unit-tests
-        args: [ -tags, test ]
+
+  -   repo: local
+      hooks:
+      -   id: go-unit-tests
+          name: go unit tests
+          entry: go test -timeout 30s -short -v -tags=test ./...
+          pass_filenames: false
+          types: [go]
+          language: system
