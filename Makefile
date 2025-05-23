@@ -26,7 +26,7 @@ test-integration:
 
 # Run race tests (to find race conditions)
 test-race:
-	$(GO_TEST) -race -v -timeout=5s ./download_history/...
+	$(GO_TEST) -tags=test -race -v -timeout=5s ./download_history/...
 
 # Run all tests (unit + integration + race)
 test-full: test-unit test-integration test-race

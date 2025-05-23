@@ -64,10 +64,11 @@ type ExportStats struct {
 // It enforces a strict lifecycle: New -> Load -> (operations) -> Save/Close
 // All methods are safe for concurrent use.
 type DownloadHistory struct {
-	mu    sync.RWMutex
-	items map[string]DownloadItem
-	path  string
-	state state
+	mu           sync.RWMutex
+	items        map[string]DownloadItem
+	path         string
+	state        state
+	loadCallback func()
 
 	// Counters are already thread-safe using atomic operations
 	DownloadCount counter
@@ -292,6 +293,9 @@ func (d *DownloadHistory) Load() error {
 	}
 
 	d.state = stateLoading
+	if d.loadCallback != nil {
+		d.loadCallback()
+	}
 
 	// Check if file exists
 	if _, err := os.Stat(d.path); os.IsNotExist(err) {
@@ -327,8 +331,13 @@ func (d *DownloadHistory) Save() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.state != stateReady {
+	switch d.state {
+	case stateNew:
 		return ErrNotReady
+	case stateLoading:
+		return ErrNotReady
+	case stateSaved:
+		return ErrAlreadyClosed
 	}
 
 	dir := filepath.Dir(d.path)

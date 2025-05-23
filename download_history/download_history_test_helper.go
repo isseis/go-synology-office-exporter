@@ -4,11 +4,10 @@
 package download_history
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"maps"
 
 	"github.com/stretchr/testify/require"
 )
@@ -17,8 +16,10 @@ import (
 type TestOption func(*testConfig)
 
 type testConfig struct {
-	path    string
-	useTemp bool
+	path         string
+	useTemp      bool
+	initialState *state
+	loadCallback func()
 }
 
 // WithTempDir configures the test to use a temporary directory.
@@ -29,6 +30,20 @@ func WithTempDir(filename string) TestOption {
 		if filename != "" {
 			c.path = filename
 		}
+	}
+}
+
+// WithLoadCallback configures the test to use a callback function that is called after Load.
+func WithLoadCallback(callback func()) TestOption {
+	return func(c *testConfig) {
+		c.loadCallback = callback
+	}
+}
+
+// WithInitialState configures the test to start in a specific state.
+func WithInitialState(initialState state) TestOption {
+	return func(c *testConfig) {
+		c.initialState = &initialState
 	}
 }
 
@@ -87,6 +102,10 @@ func NewDownloadHistoryForTest(t *testing.T, items map[string]DownloadItem, opts
 		DownloadHistory: dh,
 	}
 
+	if cfg.initialState != nil {
+		dh.state = *cfg.initialState
+	}
+
 	// Set up filesystem if needed
 	if cfg.useTemp {
 		tempDir, err := os.MkdirTemp("", "download-history-test-*")
@@ -105,6 +124,10 @@ func NewDownloadHistoryForTest(t *testing.T, items map[string]DownloadItem, opts
 	} else {
 		// Memory-only mode
 		dh.path = ""
+	}
+
+	if cfg.loadCallback != nil {
+		dh.loadCallback = cfg.loadCallback
 	}
 
 	// Copy items
