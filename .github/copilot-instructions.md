@@ -26,3 +26,17 @@
 - Comments on public structures, classes, variables and constantes in production code are compulsory.
 - Comments on test code and private elements are optional.
 - Trivial comments should be eliminated.
+
+## Test
+
+### Running tests
+
+- Add -tags=test when running test (e.g. go test -tags=test ./...)
+
+## Documentation
+
+- Update README.md when adding new features or making changes to existing code.
+- Documents should be in clear and concise English.
+- Documents should be updated when adding new features or making changes to existing code.
+- Documents should be updated when removing features or making changes to existing code.
+- Put documents in each package directory (exceptions: README.md should be in the root directory)
