@@ -2,7 +2,7 @@
 RM := /bin/rm -rf
 MKDIR := /bin/mkdir -p
 GO_BUILD := go build
-GO_TEST := go test
+GO_TEST := go test -tags test
 
 # Declare phony targets that don't produce files
 .PHONY: build test test-unit test-full test-race clean run pre-commit

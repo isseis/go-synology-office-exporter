@@ -22,10 +22,15 @@ func TestDownloadHistoryBasic(t *testing.T) {
 		DownloadStatus: StatusLoaded,
 	}
 
-	history := NewDownloadHistoryForTest(map[string]DownloadItem{"file1": item})
-	got, ok := history.items["file1"]
-	if !ok || got.FileID != item.FileID {
-		t.Errorf("SetItem or Items failed: got %+v", got)
+	history := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file1": item})
+	defer history.Close()
+
+	got, exists, err := history.GetItem("file1")
+	if err != nil {
+		t.Fatalf("GetItem failed: %v", err)
+	}
+	if !exists || got.FileID != item.FileID {
+		t.Errorf("GetItem failed: got %+v, exists=%v, error=%v", got, exists, err)
 	}
 }
 
@@ -45,47 +50,65 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 	}
 
 	t.Run("MarkSkipped - success", func(t *testing.T) {
-		h := NewDownloadHistoryForTest(map[string]DownloadItem{"file1": itemLoaded})
-		err := h.MarkSkipped("file1")
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file1": itemLoaded})
+		defer th.Close()
+		err := th.MarkSkipped("file1")
 		assert.NoError(t, err)
-		assert.Equal(t, StatusSkipped, h.items["file1"].DownloadStatus)
+		item, exists, err := th.GetItem("file1")
+		require.NoError(t, err)
+		require.True(t, exists)
+		assert.Equal(t, StatusSkipped, item.DownloadStatus)
 	})
 	t.Run("MarkSkipped - not found", func(t *testing.T) {
-		h := NewDownloadHistoryForTest(map[string]DownloadItem{})
-		err := h.MarkSkipped("notfound")
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{})
+		defer th.Close()
+		err := th.MarkSkipped("notfound")
 		assert.ErrorIs(t, err, ErrHistoryItemNotFound)
 	})
 	t.Run("MarkSkipped - wrong status", func(t *testing.T) {
-		h := NewDownloadHistoryForTest(map[string]DownloadItem{"file1": itemOther})
-		err := h.MarkSkipped("file1")
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file1": itemOther})
+		defer th.Close()
+		err := th.MarkSkipped("file1")
 		assert.ErrorIs(t, err, ErrHistoryInvalidStatus)
-		assert.Equal(t, StatusDownloaded, h.items["file1"].DownloadStatus)
+		item, exists, err := th.GetItem("file1")
+		require.NoError(t, err)
+		require.True(t, exists)
+		assert.Equal(t, StatusDownloaded, item.DownloadStatus)
 	})
 
 	t.Run("SetDownloaded - update loaded", func(t *testing.T) {
-		h := NewDownloadHistoryForTest(map[string]DownloadItem{"file2": itemLoaded})
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file2": itemLoaded})
+		defer th.Close()
 		newItem := itemLoaded
 		newItem.FileID = "id3"
 		newItem.Hash = "hash3"
 		newItem.DownloadTime = baseTime.Add(time.Hour)
-		err := h.SetDownloaded("file2", newItem)
+		err := th.SetDownloaded("file2", newItem)
 		assert.NoError(t, err)
-		assert.Equal(t, StatusDownloaded, h.items["file2"].DownloadStatus)
-		assert.Equal(t, "id3", string(h.items["file2"].FileID))
-		assert.Equal(t, "hash3", string(h.items["file2"].Hash))
-		assert.Equal(t, baseTime.Add(time.Hour), h.items["file2"].DownloadTime)
+		item, exists, err := th.GetItem("file2")
+		require.NoError(t, err)
+		require.True(t, exists)
+		assert.Equal(t, StatusDownloaded, item.DownloadStatus)
+		assert.Equal(t, "id3", string(item.FileID))
+		assert.Equal(t, "hash3", string(item.Hash))
+		assert.Equal(t, baseTime.Add(time.Hour), item.DownloadTime)
 	})
 	t.Run("SetDownloaded - add new", func(t *testing.T) {
-		h := NewDownloadHistoryForTest(map[string]DownloadItem{})
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{})
+		defer th.Close()
 		item := itemLoaded
-		err := h.SetDownloaded("file3", item)
+		err := th.SetDownloaded("file3", item)
 		assert.NoError(t, err)
-		assert.Equal(t, StatusDownloaded, h.items["file3"].DownloadStatus)
+		item, exists, err := th.GetItem("file3")
+		require.NoError(t, err)
+		require.True(t, exists)
+		assert.Equal(t, StatusDownloaded, item.DownloadStatus)
 	})
 	t.Run("SetDownloaded - error on wrong status", func(t *testing.T) {
-		h := NewDownloadHistoryForTest(map[string]DownloadItem{"file2": itemOther})
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file2": itemOther})
+		defer th.Close()
 		newItem := itemOther
-		err := h.SetDownloaded("file2", newItem)
+		err := th.SetDownloaded("file2", newItem)
 		assert.ErrorIs(t, err, ErrHistoryInvalidStatus)
 	})
 }
@@ -488,7 +511,95 @@ func TestSave(t *testing.T) {
 	})
 }
 
-// mockErrorWriter is a test helper that implements io.Writer and always returns an error on Write.
+func TestGetObsoleteItems(t *testing.T) {
+	baseTime := time.Now().Truncate(time.Second)
+	item1 := DownloadItem{
+		FileID:         "id1",
+		Hash:           "hash1",
+		DownloadTime:   baseTime,
+		DownloadStatus: StatusLoaded,
+	}
+	item2 := DownloadItem{
+		FileID:         "id2",
+		Hash:           "hash2",
+		DownloadTime:   baseTime,
+		DownloadStatus: StatusLoaded,
+	}
+	item3 := DownloadItem{
+		FileID:         "id3",
+		Hash:           "hash3",
+		DownloadTime:   baseTime,
+		DownloadStatus: StatusLoaded,
+	}
+
+	t.Run("returns error when not saved", func(t *testing.T) {
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{
+			"file1": item1,
+			"file2": item2,
+		})
+		defer th.Close()
+
+		// Should fail before Save() is called
+		items, err := th.GetObsoleteItems()
+		assert.ErrorIs(t, err, ErrNotReady)
+		assert.Nil(t, items)
+	})
+
+	t.Run("returns unprocessed items after save", func(t *testing.T) {
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{
+			"file1": item1,
+			"file2": item2,
+			"file3": item3,
+		}, WithTempDir("history.json"))
+		defer th.Close()
+
+		// Process some items
+		require.NoError(t, th.MarkSkipped("file1"))
+		require.NoError(t, th.SetDownloaded("file2", DownloadItem{
+			FileID:         "id2",
+			Hash:           "hash2_updated",
+			DownloadTime:   baseTime.Add(time.Hour),
+			DownloadStatus: StatusDownloaded,
+		}))
+
+		// Save to move to stateSaved
+		err := th.Save()
+		require.NoError(t, err)
+
+		// Get obsolete items (file3 was not processed)
+		items, err := th.GetObsoleteItems()
+		require.NoError(t, err)
+		require.Len(t, items, 1)
+		assert.Equal(t, "file3", items[0])
+	})
+
+	t.Run("returns empty slice when all items are processed", func(t *testing.T) {
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{
+			"file1": item1,
+			"file2": item2,
+		}, WithTempDir("history.json"))
+		defer th.Close()
+
+		// Process all items
+		require.NoError(t, th.MarkSkipped("file1"))
+		require.NoError(t, th.SetDownloaded("file2", DownloadItem{
+			FileID:         "id2",
+			Hash:           "hash2_updated",
+			DownloadTime:   baseTime.Add(time.Hour),
+			DownloadStatus: StatusDownloaded,
+		}))
+
+		// Save to move to stateSaved
+		err := th.Save()
+		require.NoError(t, err)
+
+		// Should return empty slice when no obsolete items
+		items, err := th.GetObsoleteItems()
+		require.NoError(t, err)
+		assert.Empty(t, items)
+	})
+}
+
 type mockErrorWriter struct{}
 
 func (m *mockErrorWriter) Write(p []byte) (n int, err error) {
