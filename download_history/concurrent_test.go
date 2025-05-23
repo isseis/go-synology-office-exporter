@@ -40,7 +40,7 @@ func TestConcurrentWriteAccess(t *testing.T) {
 	defer dh.Close()
 	var wg sync.WaitGroup
 	writers := 10
-	for i := range writers {
+	for i := 0; i < writers; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
