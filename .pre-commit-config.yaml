@@ -15,5 +15,6 @@ repos:
       - id: go-fmt
       - id: go-imports
       - id: no-go-testing
+        exclude: ^(download_history/download_history_test_helper\.go)$
       - id: golangci-lint
       - id: go-unit-tests
