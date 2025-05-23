@@ -4,11 +4,10 @@
 package download_history
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"maps"
 
 	"github.com/stretchr/testify/require"
 )

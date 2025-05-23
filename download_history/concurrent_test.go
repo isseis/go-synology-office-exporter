@@ -8,7 +8,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-
 	"time"
 
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
