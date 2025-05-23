@@ -25,9 +25,12 @@ func TestDownloadHistoryBasic(t *testing.T) {
 	history := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file1": item})
 	defer history.Close()
 
-	got, ok := history.items["file1"]
-	if !ok || got.FileID != item.FileID {
-		t.Errorf("SetItem or Items failed: got %+v", got)
+	got, exists, err := history.GetItem("file1")
+	if err != nil {
+		t.Fatalf("GetItem failed: %v", err)
+	}
+	if !exists || got.FileID != item.FileID {
+		t.Errorf("GetItem failed: got %+v, exists=%v, error=%v", got, exists, err)
 	}
 }
 
@@ -51,7 +54,10 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 		defer th.Close()
 		err := th.MarkSkipped("file1")
 		assert.NoError(t, err)
-		assert.Equal(t, StatusSkipped, th.items["file1"].DownloadStatus)
+		item, exists, err := th.GetItem("file1")
+		require.NoError(t, err)
+		require.True(t, exists)
+		assert.Equal(t, StatusSkipped, item.DownloadStatus)
 	})
 	t.Run("MarkSkipped - not found", func(t *testing.T) {
 		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{})
@@ -64,7 +70,10 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 		defer th.Close()
 		err := th.MarkSkipped("file1")
 		assert.ErrorIs(t, err, ErrHistoryInvalidStatus)
-		assert.Equal(t, StatusDownloaded, th.items["file1"].DownloadStatus)
+		item, exists, err := th.GetItem("file1")
+		require.NoError(t, err)
+		require.True(t, exists)
+		assert.Equal(t, StatusDownloaded, item.DownloadStatus)
 	})
 
 	t.Run("SetDownloaded - update loaded", func(t *testing.T) {
@@ -76,10 +85,13 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 		newItem.DownloadTime = baseTime.Add(time.Hour)
 		err := th.SetDownloaded("file2", newItem)
 		assert.NoError(t, err)
-		assert.Equal(t, StatusDownloaded, th.items["file2"].DownloadStatus)
-		assert.Equal(t, "id3", string(th.items["file2"].FileID))
-		assert.Equal(t, "hash3", string(th.items["file2"].Hash))
-		assert.Equal(t, baseTime.Add(time.Hour), th.items["file2"].DownloadTime)
+		item, exists, err := th.GetItem("file2")
+		require.NoError(t, err)
+		require.True(t, exists)
+		assert.Equal(t, StatusDownloaded, item.DownloadStatus)
+		assert.Equal(t, "id3", string(item.FileID))
+		assert.Equal(t, "hash3", string(item.Hash))
+		assert.Equal(t, baseTime.Add(time.Hour), item.DownloadTime)
 	})
 	t.Run("SetDownloaded - add new", func(t *testing.T) {
 		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{})
@@ -87,7 +99,10 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 		item := itemLoaded
 		err := th.SetDownloaded("file3", item)
 		assert.NoError(t, err)
-		assert.Equal(t, StatusDownloaded, th.items["file3"].DownloadStatus)
+		item, exists, err := th.GetItem("file3")
+		require.NoError(t, err)
+		require.True(t, exists)
+		assert.Equal(t, StatusDownloaded, item.DownloadStatus)
 	})
 	t.Run("SetDownloaded - error on wrong status", func(t *testing.T) {
 		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file2": itemOther})
