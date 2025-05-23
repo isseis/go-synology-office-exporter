@@ -256,7 +256,7 @@ func TestConcurrentGetObsoleteItems(t *testing.T) {
 	results := make([][]string, numReaders) // Pre-allocate slice with known size
 	var wg sync.WaitGroup
 
-	for i := range numReaders {
+	for i := 0; i < numReaders; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
