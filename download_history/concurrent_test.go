@@ -1,3 +1,6 @@
+//go:build test
+// +build test
+
 package download_history
 
 import (
@@ -9,15 +12,17 @@ import (
 	"time"
 
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestConcurrentReadAccess verifies that multiple goroutines can safely call read methods concurrently.
 func TestConcurrentReadAccess(t *testing.T) {
 	t.Parallel()
-	dh := newTestDownloadHistoryReady(t)
+	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{})
+	defer dh.Close()
 	var wg sync.WaitGroup
 	readers := 10
-	for i := 0; i < readers; i++ {
+	for i := range readers {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -31,10 +36,11 @@ func TestConcurrentReadAccess(t *testing.T) {
 // TestConcurrentWriteAccess verifies that write operations are mutually exclusive and safe under concurrency.
 func TestConcurrentWriteAccess(t *testing.T) {
 	t.Parallel()
-	dh := newTestDownloadHistoryReady(t)
+	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{})
+	defer dh.Close()
 	var wg sync.WaitGroup
 	writers := 10
-	for i := 0; i < writers; i++ {
+	for i := range writers {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -49,9 +55,10 @@ func TestConcurrentWriteAccess(t *testing.T) {
 // TestConcurrentReadWriteMix verifies that concurrent reads and writes do not corrupt state or panic.
 func TestConcurrentReadWriteMix(t *testing.T) {
 	t.Parallel()
-	dh := newTestDownloadHistoryReady(t)
+	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{})
+	defer dh.Close()
 	var wg sync.WaitGroup
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -79,7 +86,7 @@ func TestAtomicCounters(t *testing.T) {
 	var c counter
 	var wg sync.WaitGroup
 	incr := 1000
-	for i := 0; i < incr; i++ {
+	for range incr {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -94,15 +101,9 @@ func TestAtomicCounters(t *testing.T) {
 
 // TestStateMachineConcurrent verifies state transitions and constraints under concurrent access.
 func TestStateMachineConcurrent(t *testing.T) {
-	dh := newTestDownloadHistoryNew(t)
-	// Call Load once to transition to stateReady
-	if err := dh.Load(); err != nil {
-		t.Fatalf("Load failed: %v", err)
-	}
-	// Add one item with StatusLoaded
-	dh.mu.Lock()
-	dh.items["item1"] = DownloadItem{DownloadStatus: StatusLoaded}
-	dh.mu.Unlock()
+	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{
+		"item1": {DownloadStatus: StatusLoaded},
+	}, WithTempDir("testhistory.json"))
 	// GetStats and GetItem should succeed in stateReady
 	if _, err := dh.GetStats(); err != nil {
 		t.Errorf("GetStats before Save should succeed: %v", err)
@@ -129,13 +130,15 @@ func TestStateMachineConcurrent(t *testing.T) {
 // TestConcurrentLoad verifies that only one Load operation succeeds when called concurrently.
 func TestConcurrentLoad(t *testing.T) {
 	t.Parallel()
-	dh := newTestDownloadHistoryNew(t)
+	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{}, WithInitialState(stateNew))
+	defer dh.Close()
+
 	var wg sync.WaitGroup
 	const numLoaders = 5
 	var loadCount int32
 	var loadErrors int32
 
-	for i := 0; i < numLoaders; i++ {
+	for range numLoaders {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -161,19 +164,13 @@ func TestConcurrentLoad(t *testing.T) {
 // TestConcurrentSave verifies that only one Save operation succeeds when called concurrently.
 func TestConcurrentSave(t *testing.T) {
 	t.Parallel()
-	dh := newTestDownloadHistoryReady(t)
+	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{}, WithTempDir("test-history.json"))
+	assert.Equal(t, stateReady, dh.state)
+
 	var wg sync.WaitGroup
 	const numSavers = 5
 	var saveCount int32
-
-	// Transition to stateReady if not already
-	if dh.state != stateReady {
-		if err := dh.Load(); err != nil {
-			t.Fatalf("Failed to load history: %v", err)
-		}
-	}
-
-	for i := 0; i < numSavers; i++ {
+	for range numSavers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -192,18 +189,16 @@ func TestConcurrentSave(t *testing.T) {
 // TestConcurrentLoadSave verifies that Load and Save operations don't interfere with each other.
 func TestConcurrentLoadSave(t *testing.T) {
 	t.Parallel()
-	dh := newTestDownloadHistoryNew(t)
+	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{}, WithTempDir("test-history.json"))
+	assert.Equal(t, stateReady, dh.state)
 	var wg sync.WaitGroup
 	const numOps = 10
 	var loadCount, saveCount int32
 
-	// Initial load to get to ready state
-	if err := dh.Load(); err != nil {
-		t.Fatalf("Initial load failed: %v", err)
-	}
+	// Initial load to get to ready state has already been done in NewDownloadHistoryForTest
 	atomic.AddInt32(&loadCount, 1)
 
-	for i := 0; i < numOps; i++ {
+	for range numOps {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -234,7 +229,8 @@ func TestConcurrentLoadSave(t *testing.T) {
 // TestConcurrentGetObsoleteItems verifies that GetObsoleteItems works correctly with concurrent access.
 func TestConcurrentGetObsoleteItems(t *testing.T) {
 	t.Parallel()
-	dh := newTestDownloadHistoryReady(t)
+	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{}, WithTempDir("test-history.json"))
+	assert.Equal(t, stateReady, dh.state)
 
 	// Set 10 items
 	items := map[string]DownloadItem{}
@@ -265,8 +261,6 @@ func TestConcurrentGetObsoleteItems(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			obsolete, err := dh.GetObsoleteItems()
-			t.Log(obsolete)
-
 			if err != nil {
 				t.Errorf("GetObsoleteItems failed: %v", err)
 				return
@@ -287,10 +281,14 @@ func TestConcurrentGetObsoleteItems(t *testing.T) {
 
 // TestStateTransitions verifies state transitions work correctly under concurrent access.
 func TestStateTransitions(t *testing.T) {
-	t.Skip("No reliable way to call Save() while Load() is still in progress")
-
 	t.Parallel()
-	dh := newTestDownloadHistoryNew(t)
+	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{},
+		WithTempDir("test-history.json"),
+		WithInitialState(stateNew),
+		WithLoadCallback(func() {
+			// Wait in Load callback to simulate long-running Load
+			time.Sleep(100 * time.Millisecond)
+		}))
 	var wg sync.WaitGroup
 
 	// Test concurrent Load operations
@@ -309,9 +307,9 @@ func TestStateTransitions(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := dh.Save(); err == nil {
-			t.Error("Expected Save to fail while Load is in progress")
-		}
+		err := dh.Save()
+		// Save() should be blocked until Load() finishes
+		assert.NoError(t, err)
 	}()
 
 	wg.Wait()
@@ -319,35 +317,7 @@ func TestStateTransitions(t *testing.T) {
 	// Verify final state is ready
 	dh.mu.RLock()
 	defer dh.mu.RUnlock()
-	if dh.state != stateReady {
-		t.Errorf("Expected stateReady, got %v", dh.state)
-	}
-}
-
-// --- Helper functions for test setup ---
-
-// newTestDownloadHistoryReady returns a DownloadHistory in stateReady with one item.
-func newTestDownloadHistoryReady(t *testing.T) *DownloadHistory {
-	tmpPath := t.TempDir() + "/testhistory.json"
-	dh := &DownloadHistory{
-		items: make(map[string]DownloadItem),
-		path:  tmpPath,
-		state: stateReady,
-	}
-	dh.items["item1"] = DownloadItem{
-		FileID:         synd.FileID(strconv.Itoa(1)),
-		Hash:           synd.FileHash("hash1"),
-		DownloadStatus: StatusLoaded,
-	}
-	return dh
-}
-
-// newTestDownloadHistoryNew returns a DownloadHistory in stateNew.
-func newTestDownloadHistoryNew(t *testing.T) *DownloadHistory {
-	tmpPath := t.TempDir() + "/testhistory.json"
-	return &DownloadHistory{
-		items: make(map[string]DownloadItem),
-		path:  tmpPath,
-		state: stateNew,
+	if dh.state != stateSaved {
+		t.Errorf("Expected stateSaved, got %v", dh.state)
 	}
 }
