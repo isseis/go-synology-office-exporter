@@ -19,7 +19,7 @@ type TestOption func(*testConfig)
 type testConfig struct {
 	path         string
 	useTemp      bool
-	state        *state
+	initialState *state
 	loadCallback func()
 }
 
@@ -42,9 +42,9 @@ func WithLoadCallback(callback func()) TestOption {
 }
 
 // WithInitialState configures the test to start in a specific state.
-func WithInitialState(state state) TestOption {
+func WithInitialState(initialState state) TestOption {
 	return func(c *testConfig) {
-		c.state = &state
+		c.initialState = &initialState
 	}
 }
 
@@ -103,8 +103,8 @@ func NewDownloadHistoryForTest(t *testing.T, items map[string]DownloadItem, opts
 		DownloadHistory: dh,
 	}
 
-	if cfg.state != nil {
-		dh.state = *cfg.state
+	if cfg.initialState != nil {
+		dh.state = *cfg.initialState
 	}
 
 	// Set up filesystem if needed
