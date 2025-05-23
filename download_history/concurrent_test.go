@@ -198,7 +198,7 @@ func TestConcurrentLoadSave(t *testing.T) {
 	// Initial load to get to ready state has already been done in NewDownloadHistoryForTest
 	atomic.AddInt32(&loadCount, 1)
 
-	for range numOps {
+	for i := 0; i < numOps; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
