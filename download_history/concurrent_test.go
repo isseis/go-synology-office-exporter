@@ -138,7 +138,7 @@ func TestConcurrentLoad(t *testing.T) {
 	var loadCount int32
 	var loadErrors int32
 
-	for range numLoaders {
+	for i := 0; i < numLoaders; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
