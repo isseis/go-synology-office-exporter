@@ -86,7 +86,7 @@ func TestAtomicCounters(t *testing.T) {
 	var c counter
 	var wg sync.WaitGroup
 	incr := 1000
-	for range incr {
+	for i := 0; i < incr; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
