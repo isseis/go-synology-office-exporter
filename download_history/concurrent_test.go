@@ -22,7 +22,7 @@ func TestConcurrentReadAccess(t *testing.T) {
 	defer dh.Close()
 	var wg sync.WaitGroup
 	readers := 10
-	for i := range readers {
+	for i := 0; i < readers; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -40,7 +40,7 @@ func TestConcurrentWriteAccess(t *testing.T) {
 	defer dh.Close()
 	var wg sync.WaitGroup
 	writers := 10
-	for i := range writers {
+	for i := 0; i < writers; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -58,7 +58,7 @@ func TestConcurrentReadWriteMix(t *testing.T) {
 	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{})
 	defer dh.Close()
 	var wg sync.WaitGroup
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -86,7 +86,7 @@ func TestAtomicCounters(t *testing.T) {
 	var c counter
 	var wg sync.WaitGroup
 	incr := 1000
-	for range incr {
+	for i := 0; i < incr; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -138,7 +138,7 @@ func TestConcurrentLoad(t *testing.T) {
 	var loadCount int32
 	var loadErrors int32
 
-	for range numLoaders {
+	for i := 0; i < numLoaders; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -170,7 +170,7 @@ func TestConcurrentSave(t *testing.T) {
 	var wg sync.WaitGroup
 	const numSavers = 5
 	var saveCount int32
-	for range numSavers {
+	for i := 0; i < numSavers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -198,7 +198,7 @@ func TestConcurrentLoadSave(t *testing.T) {
 	// Initial load to get to ready state has already been done in NewDownloadHistoryForTest
 	atomic.AddInt32(&loadCount, 1)
 
-	for range numOps {
+	for i := 0; i < numOps; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -234,7 +234,7 @@ func TestConcurrentGetObsoleteItems(t *testing.T) {
 
 	// Set 10 items
 	items := map[string]DownloadItem{}
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		fileID := synd.FileID(strconv.Itoa(i))
 		hash := synd.FileHash("hash" + string(rune('A'+i)))
 		item := DownloadItem{
@@ -256,7 +256,7 @@ func TestConcurrentGetObsoleteItems(t *testing.T) {
 	results := make([][]string, numReaders) // Pre-allocate slice with known size
 	var wg sync.WaitGroup
 
-	for i := range numReaders {
+	for i := 0; i < numReaders; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
