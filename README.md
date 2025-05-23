@@ -64,6 +64,8 @@ Then run:
 Usage of synology-office-exporter:
   -dry_run
         If set, perform a dry run (no file downloads, only show statistics)
+  -force-download
+        If set, re-download files even if they exist and have matching hashes
   -output string
         Directory to save downloaded files (can be set via env SYNOLOGY_DOWNLOAD_DIR)
   -pass string
