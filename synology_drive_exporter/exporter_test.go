@@ -1,3 +1,6 @@
+//go:build test
+// +build test
+
 package synology_drive_exporter
 
 import (
@@ -11,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/isseis/go-synology-office-exporter/download_history"
+	download_history "github.com/isseis/go-synology-office-exporter/download_history"
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
@@ -844,6 +847,87 @@ func TestExporter_MakeLocalFileName(t *testing.T) {
 	}
 }
 
+// TestForceDownload verifies the behavior of the force-download feature
+func TestForceDownload(t *testing.T) {
+	tests := []struct {
+		name          string
+		forceDownload bool
+		history       map[string]download_history.DownloadItem
+		expectWrite   bool
+		expectStatus  download_history.DownloadStatus
+	}{
+		{
+			name:          "skip when force=false and hash matches",
+			forceDownload: false,
+			history: map[string]download_history.DownloadItem{
+				makeLocalFileName("/doc/test.odoc"): {
+					FileID:         "file1",
+					Hash:           "hash1",
+					DownloadStatus: download_history.StatusDownloaded,
+					DownloadTime:   time.Now(),
+				},
+			},
+			expectWrite:  false,
+			expectStatus: download_history.StatusDownloaded, // Status remains downloaded when skipping
+		},
+		{
+			name:          "force download when force=true and hash matches",
+			forceDownload: true,
+			history: map[string]download_history.DownloadItem{
+				makeLocalFileName("/doc/test.odoc"): {
+					FileID:         "file1",
+					Hash:           "hash1",
+					DownloadStatus: download_history.StatusDownloaded,
+					DownloadTime:   time.Now(),
+				},
+			},
+			expectWrite:  true,
+			expectStatus: download_history.StatusDownloaded,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			session := &MockSynologySession{
+				ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
+					return &synd.ExportResponse{Content: []byte("test content")}, nil
+				},
+			}
+
+			mockFS := NewMockFileSystem()
+			th := download_history.NewDownloadHistoryForTest(t, tt.history, download_history.WithTempDir("history_force.json"))
+			defer th.Close()
+
+			item := ExportItem{
+				Type:        synd.ObjectTypeFile,
+				FileID:      "file1",
+				DisplayPath: "/doc/test.odoc",
+				Hash:        "hash1",
+			}
+
+			exporter := NewExporterWithDependencies(session, "", mockFS)
+			exporter.forceDownload = tt.forceDownload
+
+			// For the purpose of this test, we'll just verify the behavior through the file system
+			// and history updates, since the logs are being written to stderr and are hard to capture
+			exporter.processFile(item, th.DownloadHistory)
+
+			// Verify file operations
+			_, exists := mockFS.WrittenFiles[makeLocalFileName(item.DisplayPath)]
+			if tt.expectWrite != exists {
+				t.Errorf("expected file write: %v, got: %v", tt.expectWrite, exists)
+			}
+
+			// Verify history status
+			dlItem, exists, err := th.GetItem(makeLocalFileName(item.DisplayPath))
+			require.NoError(t, err, "unexpected error getting item from history")
+			require.True(t, exists, "expected item to exist in history")
+			require.Equal(t, tt.expectStatus, dlItem.DownloadStatus, "unexpected download status")
+		})
+	}
+}
+
 // TestExporter_Counts verifies that DownloadHistory counters are incremented correctly during export.
 func TestExporter_Counts(t *testing.T) {
 	fileID := synd.FileID("file1")
@@ -997,9 +1081,7 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		dlItem, exists, err := history.GetItem(makeLocalFileName(item.DisplayPath))
 		require.NoError(t, err, "unexpected error getting item from history")
 		require.True(t, exists, "expected item to exist in history for path: %s", item.DisplayPath)
-		if dlItem.DownloadStatus != download_history.StatusDownloaded {
-			t.Errorf("expected download_history.StatusDownloaded, got %v", dlItem.DownloadStatus)
-		}
+		require.Equal(t, download_history.StatusDownloaded, dlItem.DownloadStatus, "expected status to be downloaded")
 	})
 
 	t.Run("download_history.StatusSkipped when hash unchanged", func(t *testing.T) {
