@@ -661,10 +661,9 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 
 		// Create some test files
 		files := []string{
-			filepath.Join(tempDir, "keep1.txt"),
-			filepath.Join(tempDir, "keep2.txt"),
 			filepath.Join(tempDir, "obsolete1.txt"),
 			filepath.Join(tempDir, "obsolete2.txt"),
+			filepath.Join(tempDir, "keep1.txt"),
 		}
 
 		for _, f := range files {
@@ -672,33 +671,29 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 			require.NoError(t, err, "Failed to create test file")
 		}
 
-		// Create a history with some files
-		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
-			filepath.Join(tempDir, "keep1.txt"): {
+		// Create a history with some files using the test helper with temp dir
+		th := download_history.NewDownloadHistoryForTest(t, map[string]download_history.DownloadItem{
+			files[0]: {
 				FileID:         "file1",
 				Hash:           "hash1",
 				DownloadTime:   time.Now(),
-				DownloadStatus: download_history.StatusDownloaded, // Mark as downloaded to keep
+				DownloadStatus: download_history.StatusLoaded, // Mark as loaded to be removed
 			},
-			filepath.Join(tempDir, "keep2.txt"): {
+			files[1]: {
 				FileID:         "file2",
 				Hash:           "hash2",
 				DownloadTime:   time.Now(),
-				DownloadStatus: download_history.StatusDownloaded, // Mark as downloaded to keep
+				DownloadStatus: download_history.StatusLoaded, // Mark as loaded to be removed
 			},
-			filepath.Join(tempDir, "obsolete1.txt"): {
+			files[2]: {
 				FileID:         "file3",
 				Hash:           "hash3",
 				DownloadTime:   time.Now(),
-				DownloadStatus: download_history.StatusLoaded, // Mark as loaded to be removed
+				DownloadStatus: download_history.StatusDownloaded, // Should be kept
 			},
-			filepath.Join(tempDir, "obsolete2.txt"): {
-				FileID:         "file4",
-				Hash:           "hash4",
-				DownloadTime:   time.Now(),
-				DownloadStatus: download_history.StatusLoaded, // Mark as loaded to be removed
-			},
-		})
+		}, download_history.WithTempDir("history.json"))
+		defer th.Close()
+		history := th.DownloadHistory
 
 		e := &Exporter{
 			fs:     NewMockFileSystem(),
@@ -742,8 +737,8 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 			require.NoError(t, err, "Failed to create test file")
 		}
 
-		// Create a history with some files
-		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
+		// Create a history with some files using the test helper with temp dir
+		th := download_history.NewDownloadHistoryForTest(t, map[string]download_history.DownloadItem{
 			filepath.Join(tempDir, "obsolete1.txt"): {
 				FileID:         "file1",
 				Hash:           "hash1",
@@ -756,7 +751,9 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 				DownloadTime:   time.Now(),
 				DownloadStatus: download_history.StatusLoaded, // Mark as loaded to be removed
 			},
-		})
+		}, download_history.WithTempDir("history.json"))
+		defer th.Close()
+		history := th.DownloadHistory
 
 		e := &Exporter{
 			fs:     NewMockFileSystem(),
@@ -796,7 +793,7 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 		}
 
 		// Create a history with some files
-		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
+		th := download_history.NewDownloadHistoryForTest(t, map[string]download_history.DownloadItem{
 			filepath.Join(tempDir, "obsolete1.txt"): {
 				FileID:         "file1",
 				Hash:           "hash1",
@@ -804,6 +801,8 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 				DownloadStatus: download_history.StatusLoaded, // Mark as loaded to be removed
 			},
 		})
+		history := th.DownloadHistory
+		defer th.Close()
 
 		e := &Exporter{
 			fs:     NewMockFileSystem(),
@@ -863,7 +862,9 @@ func TestExporter_Counts(t *testing.T) {
 			},
 		}
 		mockFS := NewMockFileSystem()
-		history := download_history.NewDownloadHistoryForTest(noDownloadItems)
+		th := download_history.NewDownloadHistoryForTest(t, noDownloadItems)
+		defer th.Close()
+		history := th.DownloadHistory
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      fileID,
@@ -885,9 +886,11 @@ func TestExporter_Counts(t *testing.T) {
 		}
 		mockFS := NewMockFileSystem()
 		// Use test helper to create DownloadHistory with initial items for testing
-		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
+		th := download_history.NewDownloadHistoryForTest(t, map[string]download_history.DownloadItem{
 			cleanPath: {FileID: fileID, Hash: fileHash},
 		})
+		defer th.Close()
+		history := th.DownloadHistory
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      fileID,
@@ -951,7 +954,9 @@ func TestExporter_Counts(t *testing.T) {
 		mockFS.CreateFileFunc = func(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
 			return errors.New("write failed")
 		}
-		history := download_history.NewDownloadHistoryForTest(noDownloadItems)
+		th := download_history.NewDownloadHistoryForTest(t, noDownloadItems)
+		defer th.Close()
+		history := th.DownloadHistory
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      fileID2,
@@ -976,7 +981,10 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 			},
 		}
 		mockFS := NewMockFileSystem()
-		history := download_history.NewDownloadHistoryForTest(noDownloadItems)
+		th := download_history.NewDownloadHistoryForTest(t, noDownloadItems, download_history.WithTempDir("history.json"))
+		defer th.Close()
+		history := th.DownloadHistory
+
 		item := ExportItem{
 			Type:        synd.ObjectTypeFile,
 			FileID:      "file1",
@@ -1004,9 +1012,11 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		initialTime := time.Date(2024, 5, 18, 8, 0, 0, 0, time.UTC)
 		path := makeLocalFileName(item.DisplayPath)
 		// Use test helper to create DownloadHistory with initial items for testing
-		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
+		th := download_history.NewDownloadHistoryForTest(t, map[string]download_history.DownloadItem{
 			path: {FileID: "file1", Hash: "hash1", DownloadStatus: download_history.StatusLoaded, DownloadTime: initialTime},
-		})
+		}, download_history.WithTempDir("history.json"))
+		defer th.Close()
+		history := th.DownloadHistory
 		session := &MockSynologySession{
 			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
 				return &synd.ExportResponse{Content: []byte("file content")}, nil
@@ -1035,11 +1045,13 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 		item2 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file2", DisplayPath: "/doc/test2.odoc", Hash: "hash2-new"} // hash changed
 		item3 := ExportItem{Type: synd.ObjectTypeFile, FileID: "file3", DisplayPath: "/doc/test3.odoc", Hash: "hash3"}     // only in history
 		// Use test helper to create DownloadHistory with initial items for testing
-		history := download_history.NewDownloadHistoryForTest(map[string]download_history.DownloadItem{
+		th := download_history.NewDownloadHistoryForTest(t, map[string]download_history.DownloadItem{
 			makeLocalFileName(item1.DisplayPath): {FileID: "file1", Hash: "hash1", DownloadStatus: download_history.StatusLoaded},
 			makeLocalFileName(item2.DisplayPath): {FileID: "file2", Hash: "hash2-old", DownloadStatus: download_history.StatusLoaded},
 			makeLocalFileName(item3.DisplayPath): {FileID: "file3", Hash: "hash3", DownloadStatus: download_history.StatusLoaded},
-		})
+		}, download_history.WithTempDir("history.json"))
+		defer th.Close()
+		history := th.DownloadHistory
 		session := &MockSynologySession{
 			ExportFunc: func(fid synd.FileID) (*synd.ExportResponse, error) {
 				return &synd.ExportResponse{Content: []byte("file content")}, nil
@@ -1130,7 +1142,9 @@ func TestExportItem_HistoryAndHash(t *testing.T) {
 				writeCalled = true
 				return nil
 			}
-			history := download_history.NewDownloadHistoryForTest(tc.history)
+			th := download_history.NewDownloadHistoryForTest(t, tc.history)
+			defer th.Close()
+			history := th.DownloadHistory
 			item := ExportItem{
 				Type:        synd.ObjectTypeFile,
 				FileID:      fileID,

@@ -22,7 +22,7 @@ func TestDownloadHistoryBasic(t *testing.T) {
 		DownloadStatus: StatusLoaded,
 	}
 
-	history := NewTestDownloadHistory(t, map[string]DownloadItem{"file1": item})
+	history := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file1": item})
 	defer history.Close()
 
 	got, ok := history.items["file1"]
@@ -47,20 +47,20 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 	}
 
 	t.Run("MarkSkipped - success", func(t *testing.T) {
-		th := NewTestDownloadHistory(t, map[string]DownloadItem{"file1": itemLoaded})
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file1": itemLoaded})
 		defer th.Close()
 		err := th.MarkSkipped("file1")
 		assert.NoError(t, err)
 		assert.Equal(t, StatusSkipped, th.items["file1"].DownloadStatus)
 	})
 	t.Run("MarkSkipped - not found", func(t *testing.T) {
-		th := NewTestDownloadHistory(t, map[string]DownloadItem{})
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{})
 		defer th.Close()
 		err := th.MarkSkipped("notfound")
 		assert.ErrorIs(t, err, ErrHistoryItemNotFound)
 	})
 	t.Run("MarkSkipped - wrong status", func(t *testing.T) {
-		th := NewTestDownloadHistory(t, map[string]DownloadItem{"file1": itemOther})
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file1": itemOther})
 		defer th.Close()
 		err := th.MarkSkipped("file1")
 		assert.ErrorIs(t, err, ErrHistoryInvalidStatus)
@@ -68,7 +68,7 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 	})
 
 	t.Run("SetDownloaded - update loaded", func(t *testing.T) {
-		th := NewTestDownloadHistory(t, map[string]DownloadItem{"file2": itemLoaded})
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file2": itemLoaded})
 		defer th.Close()
 		newItem := itemLoaded
 		newItem.FileID = "id3"
@@ -82,7 +82,7 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 		assert.Equal(t, baseTime.Add(time.Hour), th.items["file2"].DownloadTime)
 	})
 	t.Run("SetDownloaded - add new", func(t *testing.T) {
-		th := NewTestDownloadHistory(t, map[string]DownloadItem{})
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{})
 		defer th.Close()
 		item := itemLoaded
 		err := th.SetDownloaded("file3", item)
@@ -90,7 +90,7 @@ func TestDownloadHistoryStatusMethods(t *testing.T) {
 		assert.Equal(t, StatusDownloaded, th.items["file3"].DownloadStatus)
 	})
 	t.Run("SetDownloaded - error on wrong status", func(t *testing.T) {
-		th := NewTestDownloadHistory(t, map[string]DownloadItem{"file2": itemOther})
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{"file2": itemOther})
 		defer th.Close()
 		newItem := itemOther
 		err := th.SetDownloaded("file2", newItem)
@@ -518,7 +518,7 @@ func TestGetObsoleteItems(t *testing.T) {
 	}
 
 	t.Run("returns error when not saved", func(t *testing.T) {
-		th := NewTestDownloadHistory(t, map[string]DownloadItem{
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{
 			"file1": item1,
 			"file2": item2,
 		})
@@ -531,7 +531,7 @@ func TestGetObsoleteItems(t *testing.T) {
 	})
 
 	t.Run("returns unprocessed items after save", func(t *testing.T) {
-		th := NewTestDownloadHistory(t, map[string]DownloadItem{
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{
 			"file1": item1,
 			"file2": item2,
 			"file3": item3,
@@ -559,7 +559,7 @@ func TestGetObsoleteItems(t *testing.T) {
 	})
 
 	t.Run("returns empty slice when all items are processed", func(t *testing.T) {
-		th := NewTestDownloadHistory(t, map[string]DownloadItem{
+		th := NewDownloadHistoryForTest(t, map[string]DownloadItem{
 			"file1": item1,
 			"file2": item2,
 		}, WithTempDir("history.json"))

@@ -48,15 +48,15 @@ func (t *TestDownloadHistory) Close() {
 	}
 }
 
-// NewTestDownloadHistory creates a new test instance of DownloadHistory.
+// NewDownloadHistoryForTest creates a new test instance of DownloadHistory.
 // By default, it operates in memory-only mode. Use WithTempDir to enable filesystem operations.
 // The caller is responsible for calling Close() to clean up resources.
 //
 // Example:
 //
-//	th := NewTestDownloadHistory(t, map[string]DownloadItem{...}, WithTempDir("history.json"))
+//	th := NewDownloadHistoryForTest(t, map[string]DownloadItem{...}, WithTempDir("history.json"))
 //	defer th.Close()
-func NewTestDownloadHistory(t *testing.T, items map[string]DownloadItem, opts ...TestOption) *TestDownloadHistory {
+func NewDownloadHistoryForTest(t *testing.T, items map[string]DownloadItem, opts ...TestOption) *TestDownloadHistory {
 	t.Helper()
 
 	if items == nil {
@@ -111,23 +111,4 @@ func NewTestDownloadHistory(t *testing.T, items map[string]DownloadItem, opts ..
 	maps.Copy(dh.items, items)
 
 	return result
-}
-
-// Deprecated: Use NewTestDownloadHistory instead.
-// NewDownloadHistoryForTest creates a DownloadHistory instance initialized with the given items map.
-// This is kept for backward compatibility but will be removed in a future version.
-func NewDownloadHistoryForTest(items map[string]DownloadItem) *DownloadHistory {
-	if items == nil {
-		items = make(map[string]DownloadItem)
-	}
-	dh := &DownloadHistory{
-		items:         items,
-		path:          "test-history.json",
-		state:         stateReady, // Set to ready state for testing
-		DownloadCount: counter{},
-		SkippedCount:  counter{},
-		IgnoredCount:  counter{},
-		ErrorCount:    counter{},
-	}
-	return dh
 }
