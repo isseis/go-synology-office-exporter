@@ -13,18 +13,26 @@ import (
 // MockFileSystem is a mock implementation of FileSystemOperations for testing.
 type MockFileSystem struct {
 	CreateFileFunc func(string, []byte, os.FileMode, os.FileMode) error
+	RemoveFunc     func(path string) error
 	WrittenFiles   map[string][]byte
+	RemovedFiles   map[string]bool
 }
 
+// NewMockFileSystem creates a new MockFileSystem with default no-op implementations.
 func NewMockFileSystem() *MockFileSystem {
 	return &MockFileSystem{
 		CreateFileFunc: func(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
 			return nil
 		},
+		RemoveFunc: func(path string) error {
+			return nil
+		},
 		WrittenFiles: make(map[string][]byte),
+		RemovedFiles: make(map[string]bool),
 	}
 }
 
+// CreateFile simulates file creation for testing. It records written files in WrittenFiles.
 // CreateFile simulates file creation for testing. It records written files in WrittenFiles.
 func (m *MockFileSystem) CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
 	if m.CreateFileFunc != nil {
@@ -37,6 +45,20 @@ func (m *MockFileSystem) CreateFile(filename string, data []byte, dirPerm os.Fil
 
 	// If no custom function is provided, simulate file writing.
 	m.WrittenFiles[filename] = data
+	return nil
+}
+
+// Remove simulates file removal for testing.
+func (m *MockFileSystem) Remove(path string) error {
+	if m.RemoveFunc != nil {
+		err := m.RemoveFunc(path)
+		if err == nil {
+			m.RemovedFiles[path] = true
+		}
+		return err
+	}
+	// If no custom function is provided, simulate file removal.
+	m.RemovedFiles[path] = true
 	return nil
 }
 
