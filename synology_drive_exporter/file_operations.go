@@ -16,7 +16,7 @@ func (e *Exporter) removeFile(path string) error {
 		return nil
 	}
 
-	err := os.Remove(path)
+	err := e.fs.Remove(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Printf("File already removed: %s", path)

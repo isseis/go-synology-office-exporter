@@ -56,6 +56,7 @@ func TestExporter_removeFile(t *testing.T) {
 
 			e := &Exporter{
 				dryRun: tt.dryRun,
+				fs:     &DefaultFileSystem{},
 			}
 
 			err := e.removeFile(testFile)
@@ -117,7 +118,7 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 		history := th.DownloadHistory
 
 		e := &Exporter{
-			fs:     NewMockFileSystem(),
+			fs:     &DefaultFileSystem{},
 			dryRun: false,
 		}
 

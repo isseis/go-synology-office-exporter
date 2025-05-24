@@ -7,14 +7,18 @@ import (
 )
 
 // FileSystemOperations abstracts file system operations for the Exporter, allowing for easy mocking in tests.
+// FileSystemOperations abstracts file system operations for the Exporter, allowing for easy mocking in tests.
 type FileSystemOperations interface {
 	// CreateFile writes data to a file, creating parent directories if needed. Directory and file permissions are set by dirPerm and filePerm.
 	CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error
+	// Remove deletes the specified file from the filesystem.
+	Remove(path string) error
 }
 
 // DefaultFileSystem provides a production implementation of FileSystemOperations using the os package.
 type DefaultFileSystem struct{}
 
+// CreateFile writes data to a file, creating parent directories if needed.
 func (fs *DefaultFileSystem) CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error {
 	// Create parent directories if they don't exist
 	dir := filepath.Dir(filename)
@@ -28,4 +32,9 @@ func (fs *DefaultFileSystem) CreateFile(filename string, data []byte, dirPerm os
 	}
 
 	return nil
+}
+
+// Remove deletes the specified file from the filesystem.
+func (fs *DefaultFileSystem) Remove(path string) error {
+	return os.Remove(path)
 }
