@@ -7,7 +7,6 @@ import (
 )
 
 // FileSystemOperations abstracts file system operations for the Exporter, allowing for easy mocking in tests.
-// FileSystemOperations abstracts file system operations for the Exporter, allowing for easy mocking in tests.
 type FileSystemOperations interface {
 	// CreateFile writes data to a file, creating parent directories if needed. Directory and file permissions are set by dirPerm and filePerm.
 	CreateFile(filename string, data []byte, dirPerm os.FileMode, filePerm os.FileMode) error
