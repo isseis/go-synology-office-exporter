@@ -12,7 +12,7 @@ import (
 func TestDefaultFileSystem_CreateFile(t *testing.T) {
 	tests := []struct {
 		name      string
-		setup     func(t *testing.T) (string, string) // returns (baseDir, filename)
+		setup     func(t *testing.T) string // returns filename
 		data      []byte
 		dirPerm   os.FileMode
 		filePerm  os.FileMode
@@ -21,9 +21,8 @@ func TestDefaultFileSystem_CreateFile(t *testing.T) {
 	}{
 		{
 			name: "successful file creation",
-			setup: func(t *testing.T) (string, string) {
-				dir := t.TempDir()
-				return dir, filepath.Join(dir, "subdir", "testfile.txt")
+			setup: func(t *testing.T) string {
+				return filepath.Join(t.TempDir(), "subdir", "testfile.txt")
 			},
 			data:      []byte("test content"),
 			dirPerm:   0755,
@@ -33,8 +32,8 @@ func TestDefaultFileSystem_CreateFile(t *testing.T) {
 		},
 		{
 			name: "empty filename",
-			setup: func(t *testing.T) (string, string) {
-				return t.TempDir(), ""
+			setup: func(t *testing.T) string {
+				return ""
 			},
 			data:     []byte("test"),
 			dirPerm:  0755,
@@ -43,10 +42,9 @@ func TestDefaultFileSystem_CreateFile(t *testing.T) {
 		},
 		{
 			name: "invalid directory permissions",
-			setup: func(t *testing.T) (string, string) {
-				dir := t.TempDir()
+			setup: func(t *testing.T) string {
 				// Try to create in a non-existent parent with no permissions
-				return dir, filepath.Join(dir, "nonexistent", "testfile.txt")
+				return filepath.Join(t.TempDir(), "nonexistent", "testfile.txt")
 			},
 			data:     []byte("test"),
 			dirPerm:  0000, // No permissions
@@ -57,7 +55,7 @@ func TestDefaultFileSystem_CreateFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, filename := tt.setup(t)
+			filename := tt.setup(t)
 			fs := &DefaultFileSystem{}
 
 			err := fs.CreateFile(filename, tt.data, tt.dirPerm, tt.filePerm)
