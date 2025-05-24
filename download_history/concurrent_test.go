@@ -25,7 +25,7 @@ func TestConcurrentReadAccess(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			_, _ = dh.GetStats()
+			_ = dh.GetStats()
 			_, _, _ = dh.GetItem("item1")
 		}(i)
 	}
@@ -62,7 +62,7 @@ func TestConcurrentReadWriteMix(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < 100; j++ {
-				_, _ = dh.GetStats()
+				_ = dh.GetStats()
 				_, _, _ = dh.GetItem("item1")
 			}
 		}()
@@ -103,10 +103,7 @@ func TestStateMachineConcurrent(t *testing.T) {
 	dh := NewDownloadHistoryForTest(t, map[string]DownloadItem{
 		"item1": {DownloadStatus: StatusLoaded},
 	}, WithTempDir("testhistory.json"))
-	// GetStats and GetItem should succeed in stateReady
-	if _, err := dh.GetStats(); err != nil {
-		t.Errorf("GetStats before Save should succeed: %v", err)
-	}
+
 	if _, _, err := dh.GetItem("item1"); err != nil {
 		t.Errorf("GetItem before Save should succeed: %v", err)
 	}
@@ -115,9 +112,6 @@ func TestStateMachineConcurrent(t *testing.T) {
 		t.Fatalf("Save failed: %v", err)
 	}
 	// After Save, only GetObsoleteItems should succeed
-	if _, err := dh.GetStats(); err != ErrNotReady {
-		t.Errorf("GetStats after Save should return ErrNotReady, got: %v", err)
-	}
 	if _, _, err := dh.GetItem("item1"); err != ErrNotReady {
 		t.Errorf("GetItem after Save should return ErrNotReady, got: %v", err)
 	}

@@ -170,10 +170,7 @@ func (e *Exporter) exportItemsWithHistory(
 		e.processItem(item, history)
 	}
 
-	var dlStats dh.ExportStats
-	if dlStats, err = history.GetStats(); err != nil {
-		return ExportStats{}, &DownloadHistoryOperationError{Op: "get stats", Err: err}
-	}
+	dlStats := history.GetStats()
 	exStats := toExportStats(dlStats)
 	if err := history.Save(); err != nil {
 		return exStats, &DownloadHistoryOperationError{Op: "save", Err: err}
