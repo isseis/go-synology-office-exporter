@@ -1,5 +1,5 @@
-//go:build test
-// +build test
+//go:build race
+// +build race
 
 package download_history
 
