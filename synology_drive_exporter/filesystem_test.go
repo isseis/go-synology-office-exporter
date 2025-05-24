@@ -41,7 +41,7 @@ func TestDefaultFileSystem_CreateFile(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			name: "invalid directory permissions",
+			name: "fail when creating file with zero permission mask",
 			setup: func(t *testing.T) string {
 				// Try to create in a non-existent parent with no permissions
 				return filepath.Join(t.TempDir(), "nonexistent", "testfile.txt")
@@ -83,6 +83,7 @@ func TestDefaultFileSystem_CreateFile(t *testing.T) {
 				dirInfo, err := os.Stat(dir)
 				require.NoError(t, err, "failed to get directory info")
 				assert.True(t, dirInfo.IsDir(), "parent directory not created")
+				assert.Equal(t, tt.dirPerm, dirInfo.Mode().Perm(), "directory permissions mismatch")
 			}
 		})
 	}
@@ -92,7 +93,7 @@ func TestDefaultFileSystem_Remove(t *testing.T) {
 	tests := []struct {
 		name    string
 		setup   func(t *testing.T) string // returns filename
-		wantErr bool
+		wantErr func(e error) bool
 	}{
 		{
 			name: "successful file removal",
@@ -103,14 +104,14 @@ func TestDefaultFileSystem_Remove(t *testing.T) {
 				require.NoError(t, err, "failed to create test file")
 				return filename
 			},
-			wantErr: false,
+			wantErr: nil,
 		},
 		{
 			name: "non-existent file",
 			setup: func(t *testing.T) string {
 				return filepath.Join(t.TempDir(), "nonexistent.txt")
 			},
-			wantErr: true,
+			wantErr: os.IsNotExist,
 		},
 	}
 
@@ -121,12 +122,13 @@ func TestDefaultFileSystem_Remove(t *testing.T) {
 
 			err := fs.Remove(filename)
 
-			if tt.wantErr {
+			if tt.wantErr != nil {
 				assert.Error(t, err, "expected error")
+				assert.True(t, tt.wantErr(err), "expected error")
 			} else {
 				assert.NoError(t, err, "unexpected error removing file")
 				// Verify file no longer exists
-				_, err := os.Stat(filename)
+				_, err = os.Stat(filename)
 				assert.True(t, os.IsNotExist(err), "file should not exist after removal")
 			}
 		})
