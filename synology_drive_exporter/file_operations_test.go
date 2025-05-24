@@ -54,24 +54,22 @@ func TestExporter_removeFile(t *testing.T) {
 				require.NoError(t, err, "Failed to create test file")
 			}
 
+			mockFs := NewMockFileSystem()
 			e := &Exporter{
 				dryRun: tt.dryRun,
-				fs:     &DefaultFileSystem{},
+				fs:     mockFs,
 			}
 
 			err := e.removeFile(testFile)
-
 			if tt.expectErr {
 				assert.Error(t, err, "Expected error but got none")
 			} else {
 				assert.NoError(t, err, "Unexpected error")
 			}
-
-			_, err = os.Stat(testFile)
 			if tt.shouldExist {
-				assert.NoError(t, err, "File should still exist but doesn't")
-			} else if !os.IsNotExist(err) {
-				t.Errorf("File should not exist but does or other error: %v", err)
+				assert.False(t, mockFs.RemovedFiles[testFile], "File should not have been removed")
+			} else {
+				assert.True(t, mockFs.RemovedFiles[testFile], "File should have been removed")
 			}
 		})
 	}
@@ -117,8 +115,9 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 		defer th.Close()
 		history := th.DownloadHistory
 
+		mockFs := NewMockFileSystem()
 		e := &Exporter{
-			fs:     &DefaultFileSystem{},
+			fs:     mockFs,
 			dryRun: false,
 		}
 
@@ -136,11 +135,10 @@ func TestExporter_cleanupObsoleteFiles(t *testing.T) {
 
 		// Verify the files were actually removed
 		for _, f := range files {
-			_, err := os.Stat(f)
 			if strings.Contains(f, "obsolete") {
-				assert.True(t, os.IsNotExist(err), "Obsolete file should have been removed: %s", f)
+				assert.True(t, mockFs.RemovedFiles[f], "Obsolete file should have been removed: %s", f)
 			} else {
-				assert.NoError(t, err, "Non-obsolete file should still exist: %s", f)
+				assert.False(t, mockFs.RemovedFiles[f], "Non-obsolete file should still exist: %s", f)
 			}
 		}
 	})

@@ -16,6 +16,7 @@ type MockFileSystem struct {
 	CreateFileFunc func(string, []byte, os.FileMode, os.FileMode) error
 	RemoveFunc     func(path string) error
 	WrittenFiles   map[string][]byte
+	RemovedFiles   map[string]bool
 }
 
 // NewMockFileSystem creates a new MockFileSystem with default no-op implementations.
@@ -28,6 +29,7 @@ func NewMockFileSystem() *MockFileSystem {
 			return nil
 		},
 		WrittenFiles: make(map[string][]byte),
+		RemovedFiles: make(map[string]bool),
 	}
 }
 
@@ -50,8 +52,14 @@ func (m *MockFileSystem) CreateFile(filename string, data []byte, dirPerm os.Fil
 // Remove simulates file removal for testing.
 func (m *MockFileSystem) Remove(path string) error {
 	if m.RemoveFunc != nil {
-		return m.RemoveFunc(path)
+		err := m.RemoveFunc(path)
+		if err == nil {
+			m.RemovedFiles[path] = true
+		}
+		return err
 	}
+	// If no custom function is provided, simulate file removal.
+	m.RemovedFiles[path] = true
 	return nil
 }
 
