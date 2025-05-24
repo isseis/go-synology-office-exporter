@@ -11,7 +11,6 @@ import (
 )
 
 // MockFileSystem is a mock implementation of FileSystemOperations for testing.
-// MockFileSystem is a mock implementation of FileSystemOperations for testing.
 type MockFileSystem struct {
 	CreateFileFunc func(string, []byte, os.FileMode, os.FileMode) error
 	RemoveFunc     func(path string) error
