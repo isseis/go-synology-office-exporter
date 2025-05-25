@@ -69,7 +69,6 @@ func (e *Exporter) processFile(item ExportItem, history *dh.DownloadHistory) {
 	// Skip if file exists, hashes match, and we're not forcing a re-download
 	if !e.forceDownload && downloaded && prev.Hash == item.Hash {
 		e.getLogger().Debug("Skipping file due to unchanged hash", "path", localPath, "prev_hash", prev.Hash, "current_hash", item.Hash, "status", prev.DownloadStatus)
-		e.getLogger().Info("Skipping already exported file with unchanged hash", "path", localPath)
 		history.SkippedCount.Increment()
 		err := history.MarkSkipped(localPath)
 		if err != nil {
