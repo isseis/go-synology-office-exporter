@@ -27,6 +27,11 @@
 - Comments on test code and private elements are optional.
 - Trivial comments should be eliminated.
 
+## git
+
+### Running git commands
+- Use git commands with --no-pager option (e.g. git --no-pager diff --staged).
+
 ## Test
 
 ### Running tests
