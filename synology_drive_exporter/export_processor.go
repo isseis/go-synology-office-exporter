@@ -51,7 +51,7 @@ func (e *Exporter) processItem(item ExportItem, history *dh.DownloadHistory) {
 func (e *Exporter) processFile(item ExportItem, history *dh.DownloadHistory) {
 	exportName := synd.GetExportFileName(item.DisplayPath)
 	if exportName == "" {
-		fmt.Printf("Skip (not exportable): %s\n", item.DisplayPath)
+		e.getLogger().Info("Skipping non-exportable file", "path", item.DisplayPath)
 		history.IgnoredCount.Increment()
 		return
 	}
@@ -61,29 +61,28 @@ func (e *Exporter) processFile(item ExportItem, history *dh.DownloadHistory) {
 	// Check if we should skip based on hash and forceDownload flag
 	prev, downloaded, err := history.GetItem(localPath)
 	if err != nil {
-		fmt.Printf("Error checking history for %s: %v\n", localPath, err)
+		e.getLogger().Error("Failed to check download history", "path", localPath, "error", err)
 		history.ErrorCount.Increment()
 		return
 	}
 
 	// Skip if file exists, hashes match, and we're not forcing a re-download
 	if !e.forceDownload && downloaded && prev.Hash == item.Hash {
-		fmt.Printf("[DEBUG] hash skip: localPath=%s, prev.Hash=%s, item.Hash=%s, prev.DownloadStatus=%s\n", localPath, prev.Hash, item.Hash, prev.DownloadStatus)
-		fmt.Printf("Skip (already exported and hash unchanged): %s\n", localPath)
+		e.getLogger().Debug("Skipping file due to unchanged hash", "path", localPath, "prev_hash", prev.Hash, "current_hash", item.Hash, "status", prev.DownloadStatus)
 		history.SkippedCount.Increment()
 		err := history.MarkSkipped(localPath)
 		if err != nil {
-			fmt.Printf("Warning: could not mark as skipped: %v\n", err)
+			e.getLogger().Warn("Failed to mark file as skipped in history", "path", localPath, "error", err)
 		}
 		return
 	}
 
 	// If we're forcing a download and the file exists, log that we're re-downloading
 	if e.forceDownload && downloaded {
-		fmt.Printf("Re-downloading (--force-download): %s\n", localPath)
+		e.getLogger().Info("Re-downloading file due to force-download option", "path", localPath)
 	}
 	if e.IsDryRun() {
-		fmt.Printf("[DRY RUN] Would export file: %s\n", exportName)
+		e.getLogger().Info("Dry run: would export file", "export_name", exportName)
 		// Simulate successful export for statistics only
 		newItem := dh.DownloadItem{
 			FileID:       item.FileID,
@@ -92,26 +91,26 @@ func (e *Exporter) processFile(item ExportItem, history *dh.DownloadHistory) {
 		}
 		errHistory := history.SetDownloaded(localPath, newItem)
 		if errHistory != nil {
-			fmt.Printf("Warning: could not update download history: %v\n", errHistory)
+			e.getLogger().Warn("Failed to update download history in dry run", "path", localPath, "error", errHistory)
 		}
 		history.DownloadCount.Increment()
 		return
 	}
-	fmt.Printf("Exporting file: %s\n", exportName)
+	e.getLogger().Info("Exporting file", "export_name", exportName)
 	resp, err := e.session.Export(item.FileID)
 	if err != nil {
-		fmt.Printf("failed to export %s: %v\n", exportName, err)
+		e.getLogger().Error("Failed to export file", "export_name", exportName, "error", err)
 		history.ErrorCount.Increment()
 		return
 	}
 	downloadPath := filepath.Join(e.downloadDir, localPath)
 	if err := e.fs.CreateFile(downloadPath, resp.Content, 0755, 0644); err != nil {
-		fmt.Printf("failed to write file %s: %v\n", downloadPath, err)
+		e.getLogger().Error("Failed to write file", "path", downloadPath, "error", err)
 		history.ErrorCount.Increment()
 		return
 	}
 
-	fmt.Printf("Saved to: %s\n", downloadPath)
+	e.getLogger().Info("File exported successfully", "path", downloadPath)
 	// Update download history: if entry exists, mark as downloaded (only if loaded); otherwise add as new downloaded entry.
 	newItem := dh.DownloadItem{
 		FileID:       item.FileID,
@@ -121,7 +120,7 @@ func (e *Exporter) processFile(item ExportItem, history *dh.DownloadHistory) {
 	// SetDownloaded: add new entry or update existing (if loaded) to 'downloaded'.
 	errHistory := history.SetDownloaded(localPath, newItem)
 	if errHistory != nil {
-		fmt.Printf("Warning: could not update download history: %v\n", errHistory)
+		e.getLogger().Warn("Failed to update download history", "path", localPath, "error", errHistory)
 	}
 	history.DownloadCount.Increment()
 }
@@ -131,7 +130,7 @@ func (e *Exporter) processDirectory(item ExportItem, history *dh.DownloadHistory
 	// Use listAll to handle pagination automatically
 	items, err := listAll(e.session, item.FileID)
 	if err != nil {
-		fmt.Printf("Failed to list directory %s: %v\n", item.DisplayPath, err)
+		e.getLogger().Error("Failed to list directory", "path", item.DisplayPath, "error", err)
 		history.ErrorCount.Increment()
 		return
 	}

@@ -6,11 +6,21 @@ import (
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
+// Logger defines the interface for logging operations within the exporter.
+type Logger interface {
+	Debug(msg string, args ...any)
+	Info(msg string, args ...any)
+	Warn(msg string, args ...any)
+	Error(msg string, args ...any)
+	FlushWebhook() error
+}
+
 // Exporter handles exporting files from Synology Drive, maintaining download history and file system abstraction.
 type Exporter struct {
 	session     SessionInterface
 	downloadDir string // Directory where downloaded files will be saved
 	fs          FileSystemOperations
+	logger      Logger // Logger for structured logging
 
 	// dryRun controls whether file operations are performed. Immutable after construction.
 	// Default is false.
@@ -40,9 +50,67 @@ func WithForceDownload(force bool) ExporterOption {
 	}
 }
 
+// WithLogger sets the logger for Exporter.
+// If not set, a fallback logger will be used for backward compatibility.
+func WithLogger(log Logger) ExporterOption {
+	return func(e *Exporter) {
+		e.logger = log
+	}
+}
+
 // IsDryRun returns true if the exporter is in dry-run mode.
 func (e *Exporter) IsDryRun() bool {
 	return e.dryRun
+}
+
+// getLogger returns the logger, falling back to a default logger if none is set.
+func (e *Exporter) getLogger() Logger {
+	if e.logger != nil {
+		return e.logger
+	}
+	return &fallbackLogger{}
+}
+
+// GetLogger returns the logger instance for testing purposes.
+// This method is intended for testing and debugging only.
+func (e *Exporter) GetLogger() Logger {
+	return e.getLogger()
+}
+
+// fallbackLogger provides a backward-compatible logging implementation.
+type fallbackLogger struct{}
+
+func (f *fallbackLogger) Debug(msg string, args ...any) {
+	fmt.Printf("[DEBUG] %s\n", formatLogMessage(msg, args...))
+}
+
+func (f *fallbackLogger) Info(msg string, args ...any) {
+	fmt.Printf("[INFO] %s\n", formatLogMessage(msg, args...))
+}
+
+func (f *fallbackLogger) Warn(msg string, args ...any) {
+	fmt.Printf("[WARN] %s\n", formatLogMessage(msg, args...))
+}
+
+func (f *fallbackLogger) Error(msg string, args ...any) {
+	fmt.Printf("[ERROR] %s\n", formatLogMessage(msg, args...))
+}
+
+func (f *fallbackLogger) FlushWebhook() error {
+	return nil
+}
+
+// formatLogMessage formats the log message with key-value pairs.
+// It concatenates the message with additional key-value pairs provided in args.
+// In case of an odd number of args, the last one is ignored.
+func formatLogMessage(msg string, args ...any) string {
+	result := msg
+	for i := 0; i < len(args); i += 2 {
+		if i+1 < len(args) {
+			result += fmt.Sprintf(" %v=%v", args[i], args[i+1])
+		}
+	}
+	return result
 }
 
 // NewExporter constructs an Exporter with a real Synology session and the specified download directory. If downloadDir is empty, the current directory is used.
@@ -67,6 +135,7 @@ func NewExporterWithDependencies(session SessionInterface, downloadDir string, f
 		downloadDir: downloadDir,
 		fs:          fs,
 		dryRun:      false, // default
+		logger:      nil,   // will use fallback logger if not set
 	}
 	// Apply additional runtime options.
 	for _, opt := range opts {
