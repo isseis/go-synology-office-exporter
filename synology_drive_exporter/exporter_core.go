@@ -8,10 +8,10 @@ import (
 
 // Logger defines the interface for logging operations within the exporter.
 type Logger interface {
-	Debug(msg string, args ...interface{})
-	Info(msg string, args ...interface{})
-	Warn(msg string, args ...interface{})
-	Error(msg string, args ...interface{})
+	Debug(msg string, args ...any)
+	Info(msg string, args ...any)
+	Warn(msg string, args ...any)
+	Error(msg string, args ...any)
 	FlushWebhook() error
 }
 
@@ -80,19 +80,19 @@ func (e *Exporter) GetLogger() Logger {
 // fallbackLogger provides a backward-compatible logging implementation.
 type fallbackLogger struct{}
 
-func (f *fallbackLogger) Debug(msg string, args ...interface{}) {
-	// Debug messages are silent for backward compatibility
+func (f *fallbackLogger) Debug(msg string, args ...any) {
+	fmt.Printf("[DEBUG] %s\n", formatLogMessage(msg, args...))
 }
 
-func (f *fallbackLogger) Info(msg string, args ...interface{}) {
+func (f *fallbackLogger) Info(msg string, args ...any) {
 	fmt.Printf("[INFO] %s\n", formatLogMessage(msg, args...))
 }
 
-func (f *fallbackLogger) Warn(msg string, args ...interface{}) {
+func (f *fallbackLogger) Warn(msg string, args ...any) {
 	fmt.Printf("[WARN] %s\n", formatLogMessage(msg, args...))
 }
 
-func (f *fallbackLogger) Error(msg string, args ...interface{}) {
+func (f *fallbackLogger) Error(msg string, args ...any) {
 	fmt.Printf("[ERROR] %s\n", formatLogMessage(msg, args...))
 }
 
@@ -101,7 +101,7 @@ func (f *fallbackLogger) FlushWebhook() error {
 }
 
 // formatLogMessage formats the log message with key-value pairs.
-func formatLogMessage(msg string, args ...interface{}) string {
+func formatLogMessage(msg string, args ...any) string {
 	result := msg
 	for i := 0; i < len(args); i += 2 {
 		if i+1 < len(args) {
