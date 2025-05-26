@@ -101,6 +101,8 @@ func (f *fallbackLogger) FlushWebhook() error {
 }
 
 // formatLogMessage formats the log message with key-value pairs.
+// It concatenates the message with additional key-value pairs provided in args.
+// In case of an odd number of args, the last one is ignored.
 func formatLogMessage(msg string, args ...any) string {
 	result := msg
 	for i := 0; i < len(args); i += 2 {
