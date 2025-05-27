@@ -3,6 +3,7 @@ package synology_drive_exporter
 import (
 	"fmt"
 
+	"github.com/isseis/go-synology-office-exporter/logger"
 	synd "github.com/isseis/go-synology-office-exporter/synology_drive_api"
 )
 
@@ -20,7 +21,8 @@ type Exporter struct {
 	session     SessionInterface
 	downloadDir string // Directory where downloaded files will be saved
 	fs          FileSystemOperations
-	logger      Logger // Logger for structured logging
+	logger      Logger       // Logger for structured logging
+	logLevel    logger.Level // Log level for fallback logger
 
 	// dryRun controls whether file operations are performed. Immutable after construction.
 	// Default is false.
@@ -58,6 +60,14 @@ func WithLogger(log Logger) ExporterOption {
 	}
 }
 
+// WithLogLevel sets the log level for the fallback logger.
+// This option only affects the fallback logger; custom loggers should handle their own log levels.
+func WithLogLevel(level logger.Level) ExporterOption {
+	return func(e *Exporter) {
+		e.logLevel = level
+	}
+}
+
 // IsDryRun returns true if the exporter is in dry-run mode.
 func (e *Exporter) IsDryRun() bool {
 	return e.dryRun
@@ -68,7 +78,7 @@ func (e *Exporter) getLogger() Logger {
 	if e.logger != nil {
 		return e.logger
 	}
-	return &fallbackLogger{}
+	return &fallbackLogger{level: e.logLevel}
 }
 
 // GetLogger returns the logger instance for testing purposes.
@@ -77,23 +87,38 @@ func (e *Exporter) GetLogger() Logger {
 	return e.getLogger()
 }
 
-// fallbackLogger provides a backward-compatible logging implementation.
-type fallbackLogger struct{}
+// fallbackLogger provides a backward-compatible logging implementation with log level filtering.
+type fallbackLogger struct {
+	level logger.Level
+}
+
+// shouldLog checks if the message should be logged based on the configured log level.
+func (f *fallbackLogger) shouldLog(msgLevel logger.Level) bool {
+	return msgLevel >= f.level
+}
 
 func (f *fallbackLogger) Debug(msg string, args ...any) {
-	fmt.Printf("[DEBUG] %s\n", formatLogMessage(msg, args...))
+	if f.shouldLog(logger.LevelDebug) {
+		fmt.Printf("[DEBUG] %s\n", formatLogMessage(msg, args...))
+	}
 }
 
 func (f *fallbackLogger) Info(msg string, args ...any) {
-	fmt.Printf("[INFO] %s\n", formatLogMessage(msg, args...))
+	if f.shouldLog(logger.LevelInfo) {
+		fmt.Printf("[INFO] %s\n", formatLogMessage(msg, args...))
+	}
 }
 
 func (f *fallbackLogger) Warn(msg string, args ...any) {
-	fmt.Printf("[WARN] %s\n", formatLogMessage(msg, args...))
+	if f.shouldLog(logger.LevelWarn) {
+		fmt.Printf("[WARN] %s\n", formatLogMessage(msg, args...))
+	}
 }
 
 func (f *fallbackLogger) Error(msg string, args ...any) {
-	fmt.Printf("[ERROR] %s\n", formatLogMessage(msg, args...))
+	if f.shouldLog(logger.LevelError) {
+		fmt.Printf("[ERROR] %s\n", formatLogMessage(msg, args...))
+	}
 }
 
 func (f *fallbackLogger) FlushWebhook() error {
@@ -134,8 +159,9 @@ func NewExporterWithDependencies(session SessionInterface, downloadDir string, f
 		session:     session,
 		downloadDir: downloadDir,
 		fs:          fs,
-		dryRun:      false, // default
-		logger:      nil,   // will use fallback logger if not set
+		dryRun:      false,            // default
+		logger:      nil,              // will use fallback logger if not set
+		logLevel:    logger.LevelWarn, // default log level
 	}
 	// Apply additional runtime options.
 	for _, opt := range opts {
