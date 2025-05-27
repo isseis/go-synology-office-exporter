@@ -187,6 +187,7 @@ func main() {
 		syndexp.WithDryRun(*dryRunFlag),
 		syndexp.WithForceDownload(*forceDownloadFlag),
 		syndexp.WithLogger(syndexp.NewLoggerAdapter(log)),
+		syndexp.WithLogLevel(cfg.Level),
 	)
 	if err != nil {
 		log.Error("Failed to create exporter", "error", err)

@@ -31,7 +31,7 @@ func LoadConfig() (*Config, error) {
 
 	// Fall back to environment variables if flags not set
 	if levelStr == "" {
-		levelStr = getEnv("LOG_LEVEL", "info")
+		levelStr = getEnv("LOG_LEVEL", "warn")
 	}
 	if webhookURL == "" {
 		webhookURL = os.Getenv("LOG_WEBHOOK_URL")
