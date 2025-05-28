@@ -62,7 +62,7 @@ Then run:
 
 ```
 Usage of synology-office-exporter:
-  -dry_run
+  -dry-run
         If set, perform a dry run (no file downloads, only show statistics)
   -force-download
         If set, re-download files even if they exist and have matching hashes
@@ -114,7 +114,7 @@ Export all documents to the default directory (current directory):
 Preview what would be downloaded without making any changes:
 
 ```sh
-./synology-office-exporter -dry_run
+./synology-office-exporter -dry-run
 ```
 
 ### Export Specific Sources
