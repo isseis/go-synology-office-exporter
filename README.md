@@ -82,17 +82,16 @@ Usage of synology-office-exporter:
 
 The tool supports various logging configurations:
 
-- `LOG_LEVEL`: Set log level (debug, info, warn, error, fatal, panic, none)
-- `LOG_FORMAT`: Log format (json, console)
-- `LOG_FILE`: Path to log file (if empty, logs to stderr)
-- `LOG_MAX_SIZE`: Maximum size in MB before rotation (default: 100)
-- `LOG_MAX_BACKUPS`: Maximum number of old log files to retain (default: 3)
-- `LOG_MAX_AGE`: Maximum number of days to retain old log files (default: 28)
-- `LOG_COMPRESS`: Whether to compress rotated log files (default: true)
-- `LOG_LOCAL_TIME`: Use local time for log rotation (default: false)
+- `LOG_LEVEL`: Set log level (debug, info, warn, error) - default: info
 - `LOG_WEBHOOK_URL`: Webhook URL for sending logs
-- `LOG_WEBHOOK_MIN_LEVEL`: Minimum level for webhook logs (default: error)
-- `LOG_WEBHOOK_TIMEOUT`: Webhook request timeout (default: 10s)
+- `APP_NAME`: Application name for logging
+- `ENV`: Environment (development, staging, production)
+
+#### Log Level Details:
+- `debug`: Detailed processing information (file-by-file operations)
+- `info`: Important operational information (start/completion messages, statistics)
+- `warn`: Non-critical warnings and issues
+- `error`: Error conditions that prevent processing
 
 ## Examples
 
