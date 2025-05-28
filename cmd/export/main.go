@@ -116,7 +116,7 @@ func main() {
 	urlFlag := flag.String("url", "", "Synology NAS URL")
 	downloadDirFlag := flag.String("output", "", "Directory to save downloaded files")
 	sourcesFlag := flag.String("sources", "mydrive,teamfolder,shared", "Comma-separated list of sources to export (mydrive,teamfolder,shared)")
-	dryRunFlag := flag.Bool("dry_run", false, "If set, perform a dry run (no file downloads, only show statistics)")
+	dryRunFlag := flag.Bool("dry-run", false, "If set, perform a dry run (no file downloads, only show statistics)")
 	forceDownloadFlag := flag.Bool("force-download", false, "If set, re-download files even if they exist and have matching hashes")
 
 	// Parse all flags
