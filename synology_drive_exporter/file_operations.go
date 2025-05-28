@@ -11,19 +11,19 @@ import (
 // In DryRun mode, it only logs the operation without actually removing the file.
 func (e *Exporter) removeFile(path string) error {
 	if e.IsDryRun() {
-		e.getLogger().Info("Dry run: would remove file", "path", path)
+		e.getLogger().Debug("Dry run: would remove file", "path", path)
 		return nil
 	}
 
 	err := e.fs.Remove(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			e.getLogger().Info("File already removed", "path", path)
+			e.getLogger().Debug("File already removed", "path", path)
 			return nil
 		}
 		return fmt.Errorf("failed to remove file %s: %w", path, err)
 	}
-	e.getLogger().Info("File removed successfully", "path", path)
+	e.getLogger().Debug("File removed successfully", "path", path)
 	return nil
 }
 

@@ -51,7 +51,7 @@ func (e *Exporter) processItem(item ExportItem, history *dh.DownloadHistory) {
 func (e *Exporter) processFile(item ExportItem, history *dh.DownloadHistory) {
 	exportName := synd.GetExportFileName(item.DisplayPath)
 	if exportName == "" {
-		e.getLogger().Info("Skipping non-exportable file", "path", item.DisplayPath)
+		e.getLogger().Debug("Skipping non-exportable file", "path", item.DisplayPath)
 		history.IgnoredCount.Increment()
 		return
 	}
@@ -82,7 +82,7 @@ func (e *Exporter) processFile(item ExportItem, history *dh.DownloadHistory) {
 		e.getLogger().Info("Re-downloading file due to force-download option", "path", localPath)
 	}
 	if e.IsDryRun() {
-		e.getLogger().Info("Dry run: would export file", "export_name", exportName)
+		e.getLogger().Debug("Dry run: would export file", "export_name", exportName)
 		// Simulate successful export for statistics only
 		newItem := dh.DownloadItem{
 			FileID:       item.FileID,
@@ -96,7 +96,7 @@ func (e *Exporter) processFile(item ExportItem, history *dh.DownloadHistory) {
 		history.DownloadCount.Increment()
 		return
 	}
-	e.getLogger().Info("Exporting file", "export_name", exportName)
+	e.getLogger().Debug("Exporting file", "export_name", exportName)
 	resp, err := e.session.Export(item.FileID)
 	if err != nil {
 		e.getLogger().Error("Failed to export file", "export_name", exportName, "error", err)
@@ -110,7 +110,7 @@ func (e *Exporter) processFile(item ExportItem, history *dh.DownloadHistory) {
 		return
 	}
 
-	e.getLogger().Info("File exported successfully", "path", downloadPath)
+	e.getLogger().Debug("File exported successfully", "path", downloadPath)
 	// Update download history: if entry exists, mark as downloaded (only if loaded); otherwise add as new downloaded entry.
 	newItem := dh.DownloadItem{
 		FileID:       item.FileID,
